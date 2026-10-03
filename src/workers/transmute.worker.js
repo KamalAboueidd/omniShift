@@ -1,6 +1,6 @@
 import { executeDataTransmute } from './engines/dataEngine';
 import { executeSvgTransmute } from './engines/svgEngine';
-import { optimizePdf, mergePdfs } from './engines/pdfEngine';
+import { optimizePdf, mergePdfs, executePdfTransmute } from './engines/pdfEngine';
 
 /**
  * Transmute Universal Web Worker
@@ -98,17 +98,28 @@ self.onmessage = async (event) => {
       outputMimeType = svgResult.outputMimeType;
       extraMeta = svgResult.extraMeta;
     } else if (isPdf) {
-      // PDF Local Engine
-      postProgress('PARSING_AND_LINEARIZING_PDF');
-      const pdfResult = await optimizePdf(fileBuffer);
+      // PDF Local Engine (Compress, Word DOCX, Plain Text)
+      postProgress('PROCESSING_PDF_STREAM');
+      const pdfResult = await executePdfTransmute(fileBuffer, targetMimeType);
       outputBuffer = pdfResult.outputBuffer;
       outputMimeType = pdfResult.outputMimeType;
       extraMeta = pdfResult.extraMeta;
     } else {
       // Standard Raster Image Pipeline via OffscreenCanvas
       postProgress('DECODING_IMAGE_BITMAP');
-      const sourceBlob = new Blob([fileBuffer], { type: sourceMimeType || 'image/png' });
-      const imageBitmap = await createImageBitmap(sourceBlob);
+      let imageBitmap;
+      try {
+        const sourceBlob = new Blob([fileBuffer], { type: sourceMimeType || 'image/jpeg' });
+        imageBitmap = await createImageBitmap(sourceBlob);
+      } catch (decodeErr) {
+        // Fallback: untyped blob lets browser native decoder sniff magic bytes (JFIF, JPEG, PNG, WebP)
+        try {
+          const untypedBlob = new Blob([fileBuffer]);
+          imageBitmap = await createImageBitmap(untypedBlob);
+        } catch (finalErr) {
+          throw new Error(`Failed to decode image buffer: ${finalErr.message}`);
+        }
+      }
 
       const width = imageBitmap.width;
       const height = imageBitmap.height;

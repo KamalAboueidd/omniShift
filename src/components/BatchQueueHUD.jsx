@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Archive, Trash2, Cpu, CheckCircle2, Loader2 } from 'lucide-react';
 import { BatchItemRow } from './BatchItemRow';
 import { formatBytes } from '../lib/utils';
+import { useLanguage } from '../context/LanguageContext';
 
 export const BatchQueueHUD = memo(function BatchQueueHUD({
   queue,
@@ -10,6 +11,7 @@ export const BatchQueueHUD = memo(function BatchQueueHUD({
   onClearQueue,
   onDownloadIndividual,
 }) {
+  const { t } = useLanguage();
   const [isZipping, setIsZipping] = useState(false);
 
   // Compute aggregate statistics
@@ -184,7 +186,7 @@ export const BatchQueueHUD = memo(function BatchQueueHUD({
           className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-sm border border-[var(--border-color)] bg-[var(--bg-surface-1)] px-3 py-1.5 text-xs font-mono text-[var(--text-muted)] hover:text-rose-500 hover:border-rose-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Trash2 className="h-3.5 w-3.5" />
-          <span>Clear Batch Queue</span>
+          <span>{t('clearAll')}</span>
         </button>
 
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
@@ -204,8 +206,8 @@ export const BatchQueueHUD = memo(function BatchQueueHUD({
                 <Archive className="h-3.5 w-3.5" />
                 <span>
                   {allComplete
-                    ? `Download All (${completedItems} Files .zip)`
-                    : `Download Ready (${completedItems}/${totalItems} .zip)`}
+                    ? `${t('downloadAllZip')} (${completedItems})`
+                    : `${t('downloadAllZip')} (${completedItems}/${totalItems})`}
                 </span>
               </>
             )}

@@ -2,6 +2,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
+import { fileURLToPath } from 'node:url';
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -11,16 +13,17 @@ export default defineConfig({
   worker: {
     format: 'es',
   },
-  server: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    },
+  resolve: {
+    alias: [
+      {
+        find: /^pako$/,
+        replacement: fileURLToPath(new URL('./src/lib/pakoShim.js', import.meta.url)),
+      },
+    ],
   },
-  preview: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    },
+  optimizeDeps: {
+    exclude: ['pako'],
   },
+  server: {},
+  preview: {},
 });

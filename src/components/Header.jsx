@@ -1,91 +1,64 @@
-import { memo, useEffect, useState } from 'react';
-import { Sun, Moon } from 'lucide-react';
+import { memo } from 'react';
 import appIcon from '../assets/icon.png';
+import { useLanguage } from '../context/LanguageContext';
+import { cn } from "../lib/utils";
 
-export const Header = memo(function Header({
-  onOpenArchitecture,
-}) {
-  const [theme, setTheme] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('omnishift-theme');
-      if (stored) return stored;
-      return document.documentElement.classList.contains('light') ? 'light' : 'dark';
-    }
-    return 'dark';
-  });
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === 'light') {
-      root.classList.add('light');
-      root.classList.remove('dark');
-    } else {
-      root.classList.add('dark');
-      root.classList.remove('light');
-    }
-    localStorage.setItem('omnishift-theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
-  };
+export const Header = memo(function Header({ currentView = 'studio', onNavigate }) {
+  const { t } = useLanguage();
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-[var(--border-color)] bg-[var(--bg-canvas)]/90 backdrop-blur-md transition-colors">
-      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
-        {/* Left: Brand & Engine Alpha Badge */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5">
-            <img
-              src={appIcon}
-              alt="OmniShift"
-              className="h-6 w-6 object-contain"
-            />
-            <span className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
-              OmniShift
-            </span>
-          </div>
-
-          <span className="hidden sm:inline-flex items-center rounded border border-[var(--border-color)] bg-[var(--bg-surface-1)] px-2 py-0.5 text-[11px] font-mono text-[var(--text-muted)]">
-            v0.1.0-alpha
+    <header className={cn('w-full', 'bg-transparent', 'transition-colors')}>
+      <div className={cn('mx-auto', 'flex', 'h-14', 'max-w-5xl', 'items-center', 'justify-between', 'px-4', 'sm:px-6')}>
+        {/* Left: Clean Brand Logo */}
+        <div className={cn('flex', 'items-center', 'gap-2.5')}>
+          <img
+            src={appIcon}
+            alt="OmniShift"
+            className={cn('h-6', 'w-6', 'object-contain')}
+          />
+          <span className={cn('text-sm', 'font-semibold', 'tracking-tight', 'text-[var(--text-primary)]')}>
+            OmniShift
           </span>
         </div>
 
-        {/* Right: Actions, Theme Switcher & GitHub */}
-        <div className="flex items-center gap-3">
-          {/* Architecture Blueprint Trigger */}
-          <button
-            type="button"
-            onClick={onOpenArchitecture}
-            className="hidden sm:inline-flex items-center gap-1.5 rounded border border-[var(--border-color)] bg-[var(--bg-surface-1)] px-2.5 py-1 text-xs font-mono text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-color)] transition-colors"
-          >
-            <span>Architecture &amp; Security</span>
-          </button>
+        {/* Center/Right: Navigation & GitHub */}
+        <div className={cn('flex', 'items-center', 'gap-3')}>
+          {/* Navigation Links */}
+          <nav className={cn('flex', 'items-center', 'gap-1', 'rounded-lg', 'bg-[var(--bg-surface-2)]', 'p-1', 'border', 'border-[var(--border-subtle)]')}>
+            <button
+              type="button"
+              onClick={() => onNavigate?.('studio')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                currentView === 'studio'
+                  ? 'bg-[#FF5A1F] text-black shadow-2xs'
+                  : 'text-[var(--text-muted)] hover:text-[#FF5A1F]'
+              }`}
+            >
+              {t('studio')}
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate?.('guide')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                currentView === 'guide'
+                  ? 'bg-[#FF5A1F] text-black shadow-2xs'
+                  : 'text-[var(--text-muted)] hover:text-[#FF5A1F]'
+              }`}
+            >
+              {t('guide')}
+            </button>
+          </nav>
 
-          {/* Theme Toggle (Sun / Moon) - Clean ghost button, no border or bg */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-            className="flex h-8 w-8 items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-          >
-            {theme === 'dark' ? (
-              <Sun className="h-4 w-4" strokeWidth={1.25} />
-            ) : (
-              <Moon className="h-4 w-4" strokeWidth={1.25} />
-            )}
-          </button>
-
-          {/* GitHub Link Indicator - Clean ghost button, no border or bg */}
+          {/* GitHub Link */}
           <a
-            href="https://github.com"
+            href="https://github.com/KamalAboueidd/omniShift"
             target="_blank"
             rel="noopener noreferrer"
             aria-label="View source repository"
-            className="flex h-8 w-8 items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+            className={cn('flex', 'h-8', 'w-8', 'items-center', 'justify-center', 'rounded-md', 'text-[var(--text-muted)]', 'hover:text-[#FF5A1F]', 'transition-colors')}
           >
             <svg
-              className="h-4 w-4 fill-current"
+              className={cn('h-4', 'w-4', 'fill-current')}
               viewBox="0 0 24 24"
               aria-hidden="true"
             >

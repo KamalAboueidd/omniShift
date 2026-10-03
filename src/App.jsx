@@ -1,531 +1,490 @@
-import { useState, useCallback, memo, useMemo } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { TransmuteDropzone } from './components/TransmuteDropzone';
 import { SamplePresets } from './components/SamplePresets';
-import { ConversionControls } from './components/ConversionControls';
-import { BatchQueueHUD } from './components/BatchQueueHUD';
-import { TelemetryHUD } from './components/TelemetryHUD';
-import { RuntimeMonitor } from './components/RuntimeMonitor';
-import { ArchitectureModal } from './components/ArchitectureModal';
+import { StagedFilesWorkbench } from './components/StagedFilesWorkbench';
+import { GlobalDropOverlay } from './components/GlobalDropOverlay';
+import { GuidePage } from './components/GuidePage';
+import { Footer } from './components/Footer';
 import { useBatchTransmute } from './hooks/useBatchTransmute';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
-import { Terminal, Cpu, Database, Network, Activity, Command, FileSpreadsheet, Layers, Combine, ChevronDown, ChevronUp } from 'lucide-react';
-import appIcon from './assets/icon.png';
+import { useLanguage } from './context/LanguageContext';
+import { memoryManager } from './lib/memoryManager';
+import { triggerDownload } from './lib/utils';
 
-// Isolated Log Console with Mobile Accordion Collapse
-const EngineLogConsole = memo(function EngineLogConsole({ logs }) {
-  const [isOpenMobile, setIsOpenMobile] = useState(false);
-
-  return (
-    <section
-      style={{ contain: 'content' }}
-      className="mt-10 sm:mt-14 w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface-1)] p-3 sm:p-4 transition-colors"
-    >
-      <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-2.5">
-        <div className="flex items-center gap-2">
-          <Terminal className="h-3.5 w-3.5 text-[#FF5A1F]" strokeWidth={1.25} />
-          <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">
-            Local Engine Activity
-          </span>
-        </div>
-
-        <div className="flex items-center gap-3 text-[11px] font-mono text-[var(--text-muted)]">
-          <span className="hidden sm:flex items-center gap-1">
-            <Cpu className="h-3 w-3 text-emerald-500 dark:text-emerald-400" strokeWidth={1} />
-            Dedicated Worker Pool
-          </span>
-          <span className="hidden sm:inline text-[var(--border-color)]">•</span>
-          <span className="flex items-center gap-1">
-            <Database className="h-3 w-3 text-[#FF5A1F]" strokeWidth={1} />
-            0 Bytes Network
-          </span>
-
-          {/* Mobile Accordion Toggle */}
-          <button
-            type="button"
-            onClick={() => setIsOpenMobile((v) => !v)}
-            className="md:hidden inline-flex items-center gap-1 text-[11px] font-mono text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors ml-2"
-          >
-            <span>{isOpenMobile ? 'Hide Log' : 'View Log'}</span>
-            {isOpenMobile ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Log list: always visible on desktop (md), expandable on mobile */}
-      <div
-        className={`mt-3 space-y-1.5 font-mono text-[11px] max-h-48 overflow-y-auto ${
-          isOpenMobile ? 'block' : 'hidden md:block'
-        }`}
-      >
-        {logs.map((log) => (
-          <div key={log.id} className="flex items-start gap-2.5 leading-relaxed">
-            <span className="text-[var(--text-muted)] opacity-50 shrink-0">{log.time}</span>
-            <span
-              className={
-                log.level === 'KERNEL'
-                  ? 'text-[#FF5A1F] font-medium shrink-0'
-                  : log.level === 'WORKER'
-                  ? 'text-cyan-500 dark:text-cyan-400 font-medium shrink-0'
-                  : 'text-[var(--text-muted)] font-medium shrink-0'
-              }
-            >
-              [{log.level}]
-            </span>
-            <span className="text-[var(--text-muted)] break-all">{log.message}</span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-});
+const ACCEPT_ATTRIBUTE = '.png,.jpg,.jpeg,.webp,.avif,.heic,.pdf,.svg,.json,.csv,image/png,image/jpeg,image/webp,image/avif,application/pdf,image/svg+xml,application/json,text/csv';
 
 export const App = () => {
+  const { t } = useLanguage();
+  const [currentView, setCurrentView] = useState('studio'); // 'studio' | 'guide'
+  const [mode, setMode] = useState('image'); // 'image' | 'pdf' | 'data'
   const [targetMimeType, setTargetMimeType] = useState('image/webp');
-  const [quality, setQuality] = useState(0.85);
-  const [showRenderPulse, setShowRenderPulse] = useState(false);
-  const [isArchModalOpen, setIsArchModalOpen] = useState(false);
-  const [lastSelectedFiles, setLastSelectedFiles] = useState([]);
 
-  const [logs, setLogs] = useState([
-    {
-      id: 'init-1',
-      time: '00:00.001',
-      level: 'KERNEL',
-      message: 'Worker Pool initialized with Raster, Vector SVG, PDF, and Data (JSON/CSV/XLSX) engines.',
-    },
-    {
-      id: 'init-2',
-      time: '00:00.003',
-      level: 'INFO',
-      message: 'All transformations execute strictly in-memory. Zero server roundtrips.',
-    },
-  ]);
+  // Auto-Download setting (persisted in localStorage)
+  const [autoDownload, setAutoDownload] = useState(() => {
+    try {
+      return localStorage.getItem('omnishift_auto_download') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [wasAutoDownloaded, setWasAutoDownloaded] = useState(false);
 
-  const addLog = useCallback((level, message) => {
-    const now = new Date();
-    const timeStr = `${String(now.getMinutes()).padStart(2, '0')}:${String(
-      now.getSeconds()
-    ).padStart(2, '0')}.${String(Math.floor(now.getMilliseconds())).padStart(3, '0')}`;
-    setLogs((prev) => [
-      ...prev.slice(-8),
-      {
-        id: Math.random().toString(36).substring(2, 9),
-        time: timeStr,
-        level,
-        message,
-      },
-    ]);
-  }, []);
+  // Staging upload ingestion state
+  const [isIngestingFiles, setIsIngestingFiles] = useState(false);
+  const [ingestionProgress, setIngestionProgress] = useState(0);
+
+  // Single unified files array maintaining context across the 3 steps
+  const [workbenchFiles, setWorkbenchFiles] = useState([]);
+  const [conversionState, setConversionState] = useState('staged'); // 'staged' | 'converting' | 'completed'
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStep, setProcessingStep] = useState(0);
+  const [processingProgress, setProcessingProgress] = useState(0);
+
+  const addMoreInputRef = useRef(null);
 
   const {
-    queue,
-    poolStats,
-    isProcessing,
     enqueueFiles,
     clearQueue,
     downloadIndividual,
     mergePdfFiles,
-  } = useBatchTransmute({ onLog: addLog });
+    retransmuteItem,
+  } = useBatchTransmute();
 
-  // Classify active input context
+  const handleToggleAutoDownload = useCallback((enabled) => {
+    setAutoDownload(enabled);
+    try {
+      localStorage.setItem('omnishift_auto_download', enabled ? 'true' : 'false');
+    } catch {
+      // Ignored
+    }
+  }, []);
+
+  // Classify active input context dynamically
   const activeFileType = useMemo(() => {
-    const pdfFiles = lastSelectedFiles.filter((f) => f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf');
+    const rawFiles = workbenchFiles.map((f) => f.file).filter(Boolean);
+    const pdfFiles = rawFiles.filter((f) => f.name?.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf');
     if (pdfFiles.length >= 2) return 'multiple-pdf';
 
-    if (lastSelectedFiles.length > 0) {
-      const first = lastSelectedFiles[0];
-      const lower = first.name.toLowerCase();
-      if (lower.endsWith('.json') || lower.endsWith('.csv') || first.type.includes('json') || first.type.includes('csv')) {
+    if (rawFiles.length > 0) {
+      const first = rawFiles[0];
+      const lower = first.name?.toLowerCase() || '';
+      if (lower.endsWith('.json') || lower.endsWith('.csv') || first.type?.includes('json') || first.type?.includes('csv')) {
         return 'data';
       }
-      if (lower.endsWith('.svg') || first.type.includes('svg')) {
+      if (lower.endsWith('.svg') || first.type?.includes('svg')) {
         return 'svg';
       }
       if (lower.endsWith('.pdf') || first.type === 'application/pdf') {
         return 'pdf';
       }
     }
-    return 'image';
-  }, [lastSelectedFiles]);
+    return mode;
+  }, [workbenchFiles, mode]);
 
   const pdfCount = useMemo(() => {
-    return lastSelectedFiles.filter((f) => f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf').length;
-  }, [lastSelectedFiles]);
+    const rawFiles = workbenchFiles.map((f) => f.file).filter(Boolean);
+    return rawFiles.filter((f) => f.name?.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf').length;
+  }, [workbenchFiles]);
 
-  // Handle files selected via dropzone, picker, presets, or clipboard paste
+  // Handle files selected via dropzone, picker, presets, clipboard paste, or global viewport drop
   const handleFilesSelected = useCallback(
-    (files) => {
-      if (files && files.length > 0) {
-        setLastSelectedFiles(files);
+    (incomingFiles) => {
+      if (!incomingFiles || incomingFiles.length === 0) return;
 
-        // Adjust default target MIME if needed
-        const first = files[0];
-        const lower = first.name.toLowerCase();
-        let nextMime = targetMimeType;
+      const newFiles = Array.from(incomingFiles);
+      setWasAutoDownloaded(false);
 
-        if (lower.endsWith('.json')) {
-          nextMime = 'text/csv';
-        } else if (lower.endsWith('.csv')) {
-          nextMime = 'application/json';
-        } else if (lower.endsWith('.svg')) {
-          nextMime = 'image/svg+xml';
-        }
+      // Adjust default target MIME and active mode automatically based on file type
+      const first = newFiles[0];
+      const lower = first.name?.toLowerCase() || '';
+      let nextMime = targetMimeType;
 
-        if (nextMime !== targetMimeType) {
-          setTargetMimeType(nextMime);
-        }
-
-        enqueueFiles(files, nextMime, quality);
+      if (lower.endsWith('.json')) {
+        nextMime = 'text/csv';
+        setMode('data');
+      } else if (lower.endsWith('.csv')) {
+        nextMime = 'application/json';
+        setMode('data');
+      } else if (lower.endsWith('.svg')) {
+        nextMime = 'image/svg+xml';
+        setMode('image');
+      } else if (lower.endsWith('.pdf') || first.type === 'application/pdf') {
+        nextMime = 'application/pdf';
+        setMode('pdf');
+      } else {
+        nextMime = 'image/webp';
+        setMode('image');
       }
+
+      setTargetMimeType(nextMime);
+
+      // Simulate realistic upload / buffer reading into client memory
+      setIsIngestingFiles(true);
+      setIngestionProgress(25);
+
+      const t1 = setTimeout(() => {
+        setIngestionProgress(75);
+      }, 150);
+
+      const t2 = setTimeout(() => {
+        setIngestionProgress(100);
+
+        const mappedItems = newFiles.map((file) => ({
+          id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          file,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          status: 'staged',
+        }));
+
+        setWorkbenchFiles((prev) => [...prev, ...mappedItems]);
+        setConversionState('staged');
+        setIsIngestingFiles(false);
+      }, 350);
+
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     },
-    [enqueueFiles, targetMimeType, quality]
+    [targetMimeType]
   );
+
+  const handleRemoveStagedFile = useCallback((indexToRemove) => {
+    setWorkbenchFiles((prev) => {
+      const next = prev.filter((_, idx) => idx !== indexToRemove);
+      if (next.length === 0) {
+        setConversionState('staged');
+      }
+      return next;
+    });
+  }, []);
+
+  // Strict Memory Disposal: Cleanly revokes all ObjectURLs and resets queue state
+  const handleClearAll = useCallback(() => {
+    memoryManager.revokeAll();
+    setWorkbenchFiles([]);
+    setConversionState('staged');
+    setWasAutoDownloaded(false);
+    clearQueue();
+  }, [clearQueue]);
+
+  // Individual file direct download handler
+  const handleDownloadIndividual = useCallback((id) => {
+    const item = workbenchFiles.find((f) => f.id === id);
+    if (item && (item.blob || item.downloadUrl)) {
+      triggerDownload(item.blob || item.downloadUrl, item.outputFileName || item.fileName || item.name);
+    } else {
+      downloadIndividual(id);
+    }
+  }, [workbenchFiles, downloadIndividual]);
+
+  // Multi-file ZIP Archive Downloader (using client-side JSZip in RAM)
+  const handleDownloadAllZip = useCallback(async () => {
+    const readyItems = workbenchFiles.filter((f) => f.status === 'READY' || f.blob);
+    if (readyItems.length === 0) return;
+
+    try {
+      const JSZipModule = await import('jszip');
+      const JSZip = JSZipModule.default || JSZipModule;
+      const zip = new JSZip();
+
+      for (const item of readyItems) {
+        if (item.blob) {
+          const name = item.outputFileName || item.fileName || item.name;
+          zip.file(name, item.blob);
+        }
+      }
+
+      const zipBlob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 },
+      });
+
+      triggerDownload(zipBlob, `omnishift_batch_${Date.now()}.zip`);
+    } catch (err) {
+      console.error('Failed to create ZIP:', err);
+    }
+  }, [workbenchFiles]);
+
+  // Execute standard 3-step conversion flow with smooth 12-15s pacing from 1% to 100%
+  const handleStartConversion = useCallback(async () => {
+    if (workbenchFiles.length === 0) return;
+
+    setIsProcessing(true);
+    setConversionState('converting');
+    setProcessingStep(0);
+    setProcessingProgress(1);
+    setWasAutoDownloaded(false);
+
+    let progressTimer = null;
+
+    try {
+      const rawFiles = workbenchFiles.map((f) => f.file).filter(Boolean);
+      const isMultiPdf = rawFiles.length >= 2 && rawFiles.every(
+        (f) => f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf'
+      );
+
+      // 1. Kick off actual client-side transmutation task
+      const conversionPromise = (isMultiPdf && targetMimeType === 'application/pdf')
+        ? mergePdfFiles(rawFiles)
+        : enqueueFiles(rawFiles, targetMimeType, 1.0);
+
+      // 2. Smoothly animate progress from 1% to 100% over ~13.5 seconds (135ms per 1%)
+      const animationPromise = new Promise((resolve) => {
+        let current = 1;
+        progressTimer = setInterval(() => {
+          current += 1;
+          setProcessingProgress(current);
+
+          if (current >= 89) {
+            setProcessingStep(3);
+          } else if (current >= 66) {
+            setProcessingStep(2);
+          } else if (current >= 26) {
+            setProcessingStep(1);
+          } else {
+            setProcessingStep(0);
+          }
+
+          if (current >= 100) {
+            clearInterval(progressTimer);
+            resolve();
+          }
+        }, 135);
+      });
+
+      // Wait for both conversion computation and the smooth visual pacing
+      const [results] = await Promise.all([conversionPromise, animationPromise]);
+
+      setProcessingProgress(100);
+      setProcessingStep(3);
+      await new Promise((r) => setTimeout(r, 280)); // Brief pause at 100%
+
+      const validResults = (results || []).filter(Boolean);
+      if (validResults.length > 0) {
+        setWorkbenchFiles(validResults);
+        setConversionState('completed');
+
+        // Auto-Download trigger when enabled
+        if (autoDownload) {
+          setTimeout(() => {
+            if (validResults.length === 1 && (validResults[0].blob || validResults[0].downloadUrl)) {
+              triggerDownload(
+                validResults[0].blob || validResults[0].downloadUrl,
+                validResults[0].outputFileName || validResults[0].fileName || validResults[0].name
+              );
+              setWasAutoDownloaded(true);
+            } else if (validResults.length > 1) {
+              handleDownloadAllZip();
+              setWasAutoDownloaded(true);
+            }
+          }, 180);
+        }
+      } else {
+        setConversionState('staged');
+      }
+    } catch (err) {
+      console.error('Conversion failed:', err);
+      setConversionState('staged');
+    } finally {
+      if (progressTimer) clearInterval(progressTimer);
+      setIsProcessing(false);
+    }
+  }, [workbenchFiles, targetMimeType, autoDownload, enqueueFiles, mergePdfFiles, handleDownloadAllZip]);
+
+  const handleTriggerPdfMerge = useCallback(() => {
+    if (workbenchFiles.length >= 2) {
+      handleStartConversion();
+    }
+  }, [workbenchFiles, handleStartConversion]);
 
   const handleFormatChange = useCallback((newMime) => {
     setTargetMimeType(newMime);
   }, []);
 
-  const handleQualityCommit = useCallback((newQuality) => {
-    setQuality(newQuality);
-  }, []);
-
-  const handleTriggerPdfMerge = useCallback(() => {
-    const pdfFiles = lastSelectedFiles.filter((f) => f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf');
-    if (pdfFiles.length >= 2) {
-      mergePdfFiles(pdfFiles);
-    }
-  }, [lastSelectedFiles, mergePdfFiles]);
-
-  const hasReadyFiles = queue.some((i) => i.status === 'READY');
-
+  // Keyboard shortcut download (Cmd+D / Ctrl+S)
   const handleShortcutDownload = useCallback(() => {
-    const readyItems = queue.filter((i) => i.status === 'READY');
-    if (readyItems.length === 1) {
-      downloadIndividual(readyItems[0].id);
-    } else if (readyItems.length > 1) {
-      const downloadBtn = document.querySelector('button:has(svg.lucide-archive)');
-      if (downloadBtn) {
-        downloadBtn.click();
+    if (conversionState === 'completed' && workbenchFiles.length > 0) {
+      if (workbenchFiles.length === 1) {
+        handleDownloadIndividual(workbenchFiles[0].id);
+      } else {
+        handleDownloadAllZip();
       }
     }
-  }, [queue, downloadIndividual]);
+  }, [conversionState, workbenchFiles, handleDownloadIndividual, handleDownloadAllZip]);
 
   useGlobalShortcuts({
     onFilesPasted: (files) => {
-      addLog('KERNEL', `Clipboard: Detected ${files.length} file(s) from paste event.`);
       handleFilesSelected(files);
     },
     onDownload: handleShortcutDownload,
-    onReset: clearQueue,
-    canDownload: hasReadyFiles,
+    onReset: handleClearAll,
+    canDownload: conversionState === 'completed' && workbenchFiles.length > 0,
   });
 
-  // Quick Preset Handlers
-  const handleQuickJsonBenchmark = useCallback(() => {
-    addLog('KERNEL', 'Generating structured JSON customer dataset for Data Engine...');
-    const sampleData = Array.from({ length: 50 }, (_, i) => ({
-      id: `USR-${1000 + i}`,
-      name: `Engineer ${i + 1}`,
-      role: i % 3 === 0 ? 'Systems Architect' : 'Kernel Engineer',
-      performance_score: (85 + (i % 15) * 1.1).toFixed(1),
-      department: i % 2 === 0 ? 'WebAssembly R&D' : 'Core Graphics',
-      active: true,
-      last_latency_ms: 18 + (i % 8),
-    }));
-
-    const jsonBlob = new Blob([JSON.stringify(sampleData, null, 2)], { type: 'application/json' });
-    const file = new File([jsonBlob], 'corporate_telemetry.json', { type: 'application/json' });
-    handleFilesSelected([file]);
-  }, [handleFilesSelected, addLog]);
-
-  const handleQuickSvgBenchmark = useCallback(() => {
-    addLog('KERNEL', 'Generating unoptimized vector SVG with editor metadata and comments...');
-    const rawSvg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Vector Suite (Unoptimized Specimen) -->
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" viewBox="0 0 400 400" width="400" height="400">
-  <metadata>
-    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-      <cc:Work xmlns:cc="http://creativecommons.org/ns#">
-        <dc:format xmlns:dc="http://purl.org/dc/elements/1.1/">image/svg+xml</dc:format>
-      </cc:Work>
-    </rdf:RDF>
-  </metadata>
-  <sodipodi:namedview id="base" pagecolor="#ffffff" bordercolor="#666666" />
-  <rect width="400" height="400" fill="#0A0A0A" />
-  <circle cx="200" cy="200" r="140" fill="#FF5A1F" stroke="#EDEDED" stroke-width="4.000000" />
-  <polygon points="200,90 230,170 310,170 245,220 270,300 200,250 130,300 155,220 90,170 170,170" fill="#0A0A0A" stroke="#FFFFFF" stroke-width="2.50000" />
-  <text x="200" y="360" text-anchor="middle" fill="#EDEDED" font-family="monospace" font-size="16.00000">OMNISHIFT VECTOR CORE</text>
-</svg>`;
-
-    const svgBlob = new Blob([rawSvg], { type: 'image/svg+xml' });
-    const file = new File([svgBlob], 'unoptimized_vector_asset.svg', { type: 'image/svg+xml' });
-    handleFilesSelected([file]);
-  }, [handleFilesSelected, addLog]);
-
-  const handleQuickPdfMergeBenchmark = useCallback(async () => {
-    addLog('KERNEL', 'Synthesizing 3 separate PDF chapters to demonstrate in-worker PDF Merge...');
-    const { PDFDocument, rgb, StandardFonts } = await import('pdf-lib');
-    const pdfFiles = [];
-
-    const chapters = ['Executive Summary', 'Worker Pool Architecture', 'Hardware Benchmarks'];
-    for (let i = 0; i < chapters.length; i++) {
-      const doc = await PDFDocument.create();
-      const font = await doc.embedFont(StandardFonts.HelveticaBold);
-      const page = doc.addPage([500, 300]);
-      page.drawText(`DOCUMENT SECTION ${i + 1}: ${chapters[i]}`, {
-        x: 40,
-        y: 220,
-        size: 14,
-        font,
-        color: rgb(1, 0.35, 0.12),
-      });
-      page.drawText(`Generated on-the-fly in browser RAM. Ready to be merged.`, {
-        x: 40,
-        y: 190,
-        size: 10,
-        color: rgb(0.3, 0.3, 0.3),
-      });
-      const bytes = await doc.save();
-      pdfFiles.push(
-        new File([new Blob([bytes], { type: 'application/pdf' })], `section_${i + 1}_${chapters[i].toLowerCase().replace(/\s+/g, '_')}.pdf`, {
-          type: 'application/pdf',
-        })
-      );
-    }
-
-    setLastSelectedFiles(pdfFiles);
-    mergePdfFiles(pdfFiles);
-  }, [mergePdfFiles, addLog]);
-
-  const handleQuickBatchBenchmark = useCallback(async (count = 8) => {
-    addLog('KERNEL', `Synthesizing ${count} mixed buffers for parallel pool stress test...`);
-    const files = [];
-
-    for (let i = 1; i <= count; i++) {
-      const w = 1200 + i * 200;
-      const h = 800 + i * 150;
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        const grad = ctx.createLinearGradient(0, 0, w, h);
-        grad.addColorStop(0, '#0F172A');
-        grad.addColorStop(0.5, i % 2 === 0 ? '#FF5A1F' : '#0284C7');
-        grad.addColorStop(1, '#000000');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, w, h);
-
-        ctx.font = 'bold 40px monospace';
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillText(`BATCH_SPECIMEN_#${i} (${w}x${h})`, 50, 100);
-      }
-
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-      if (blob) {
-        files.push(new File([blob], `batch_render_${i}_specimen.png`, { type: 'image/png' }));
-      }
-    }
-
-    handleFilesSelected(files);
-  }, [handleFilesSelected, addLog]);
-
-  const dropzoneStatus = isProcessing
-    ? 'transmuting'
-    : queue.length > 0 && queue.every((i) => i.status === 'READY')
-    ? 'completed'
-    : 'idle';
-
-  const singleTelemetryItem = queue.length === 1 && queue[0].status === 'READY' ? queue[0] : null;
+  const hasFiles = workbenchFiles.length > 0;
 
   return (
     <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col font-sans selection:bg-[#FF5A1F]/30 selection:text-[var(--text-primary)] transition-colors">
-      {/* 1. Header with Architecture Trigger & Clean Ghost Controls */}
-      <Header
-        onOpenArchitecture={() => setIsArchModalOpen(true)}
+      {/* Global Viewport Drag & Drop Overlay */}
+      <GlobalDropOverlay onFilesDropped={handleFilesSelected} />
+
+      {/* Hidden Multi-file Input for "Add More" */}
+      <input
+        ref={addMoreInputRef}
+        type="file"
+        multiple
+        accept={ACCEPT_ATTRIBUTE}
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            handleFilesSelected(Array.from(e.target.files));
+            e.target.value = '';
+          }
+        }}
+        className="sr-only"
+        aria-hidden="true"
       />
 
-      {/* Main Layout Container */}
-      <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col justify-between">
-        <div className="w-full">
-          {/* 2. Hero Section */}
-          <Hero />
+      {/* 1. Header with Studio & Guide Navigation */}
+      <Header 
+        currentView={currentView}
+        onNavigate={(view) => setCurrentView(view)}
+      />
 
-          {/* Profiler Badges Toggle - Clean text link, no box/border */}
-          <div className="flex justify-end mb-1.5">
-            <button
-              type="button"
-              onClick={() => setShowRenderPulse((v) => !v)}
-              className="inline-flex items-center gap-1.5 font-mono text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors py-0.5"
-            >
-              <Activity className="h-3 w-3 text-[#FF5A1F]" />
-              <span>Profiler Badges: {showRenderPulse ? 'ON' : 'OFF'}</span>
-            </button>
-          </div>
+      {/* Main Breathing Canvas */}
+      <main className="flex-1 w-full flex flex-col justify-center">
+        {currentView === 'guide' ? (
+          /* Guide Landing View */
+          <GuidePage onBackToApp={() => setCurrentView('studio')} />
+        ) : (
+          /* Studio View */
+          <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col justify-center">
+            {/* 2. Hero Section */}
+            <Hero />
 
-          {/* 3. Primary Interaction Loop: Dropzone */}
-          <div>
-            <TransmuteDropzone
-              status={dropzoneStatus}
-              processingPhase={isProcessing ? `CONCURRENT POOL (${poolStats.activeWorkers} CORES)` : ''}
-              activeFileName={queue.length > 0 ? `${queue.length} Files in Queue` : ''}
-              onFilesSelected={handleFilesSelected}
-              showRenderPulse={showRenderPulse}
-              batchCount={queue.length}
-            />
+            {/* 3. Primary Workspace Area */}
+            <div className="mt-2">
+              {/* Step 1: Mode Switcher & Dropzone (when no files staged and not ingesting) */}
+              {!hasFiles && !isIngestingFiles && (
+                <>
+                  <div className="flex items-center justify-center gap-1 sm:gap-2 mb-4 select-none flex-nowrap overflow-x-auto no-scrollbar">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('image');
+                        setTargetMimeType('image/webp');
+                      }}
+                      className={`px-2.5 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                        mode === 'image'
+                          ? 'bg-[#FF5A1F] text-black shadow-2xs font-bold'
+                          : 'text-[var(--text-muted)] hover:text-[#FF5A1F] bg-transparent'
+                      }`}
+                    >
+                      {t('modeImages')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('pdf');
+                        setTargetMimeType('application/pdf');
+                      }}
+                      className={`px-2.5 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                        mode === 'pdf'
+                          ? 'bg-[#FF5A1F] text-black shadow-2xs font-bold'
+                          : 'text-[var(--text-muted)] hover:text-[#FF5A1F] bg-transparent'
+                      }`}
+                    >
+                      {t('modePdf')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('data');
+                        setTargetMimeType('text/csv');
+                      }}
+                      className={`px-2.5 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                        mode === 'data'
+                          ? 'bg-[#FF5A1F] text-black shadow-2xs font-bold'
+                          : 'text-[var(--text-muted)] hover:text-[#FF5A1F] bg-transparent'
+                      }`}
+                    >
+                      {t('modeData')}
+                    </button>
+                  </div>
 
-            {/* Instant Sample Presets Row */}
-            <SamplePresets
-              disabled={isProcessing}
-              onSelectSample={(sampleFile) => handleFilesSelected([sampleFile])}
-            />
+                  <TransmuteDropzone
+                    status="idle"
+                    processingPhase=""
+                    activeFileName=""
+                    onFilesSelected={handleFilesSelected}
+                    batchCount={0}
+                    activeMode={mode}
+                  />
 
-            {/* Contextual Format & Quality Controls */}
-            <ConversionControls
-              activeFileType={activeFileType}
-              targetMimeType={targetMimeType}
-              onTargetMimeChange={handleFormatChange}
-              initialQuality={quality}
-              onQualityCommit={handleQualityCommit}
-              onTriggerPdfMerge={handleTriggerPdfMerge}
-              disabled={isProcessing}
-              showRenderPulse={showRenderPulse}
-              pdfCount={pdfCount}
-            />
+                  {/* Sample Presets to quickly test */}
+                  <SamplePresets
+                    disabled={isProcessing}
+                    activeMode={mode}
+                    onSelectSample={(sampleFile) => handleFilesSelected([sampleFile])}
+                  />
+                </>
+              )}
 
-            {/* Additional Engine Testing Actions Bar */}
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-[var(--text-muted)]">
-              <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
-                <span className="text-[var(--text-muted)] opacity-70">Synthesizers:</span>
-                <button
-                  type="button"
-                  disabled={isProcessing}
-                  onClick={handleQuickJsonBenchmark}
-                  className="rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-500 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
-                >
-                  <FileSpreadsheet className="inline h-3 w-3 mr-1" />
-                  JSON ➔ CSV / XLSX
-                </button>
-                <button
-                  type="button"
-                  disabled={isProcessing}
-                  onClick={handleQuickSvgBenchmark}
-                  className="rounded border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-cyan-500 dark:text-cyan-400 hover:bg-cyan-500/20 transition-colors disabled:opacity-50"
-                >
-                  <Layers className="inline h-3 w-3 mr-1" />
-                  SVG Minify / PNG
-                </button>
-                <button
-                  type="button"
-                  disabled={isProcessing}
-                  onClick={handleQuickPdfMergeBenchmark}
-                  className="rounded border border-[#FF5A1F]/30 bg-[#FF5A1F]/10 px-2 py-0.5 text-[#FF5A1F] hover:bg-[#FF5A1F]/20 transition-colors disabled:opacity-50"
-                >
-                  <Combine className="inline h-3 w-3 mr-1" />
-                  Merge 3 PDFs
-                </button>
-                <button
-                  type="button"
-                  disabled={isProcessing}
-                  onClick={() => handleQuickBatchBenchmark(8)}
-                  className="rounded border border-[var(--border-color)] bg-[var(--bg-surface-1)] px-2 py-0.5 text-[var(--text-primary)] hover:border-[#FF5A1F]/40 hover:bg-[var(--bg-surface-2)] transition-colors disabled:opacity-50"
-                >
-                  8x Concurrent Batch
-                </button>
-              </div>
+              {/* Realistic Staging Ingestion Loading Meter */}
+              {isIngestingFiles && (
+                <div className="w-full mt-6 rounded-xl border border-[var(--border-color)] bg-[var(--bg-surface-1)] p-6 text-center space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between text-xs font-mono">
+                    <span className="text-[#FF5A1F] font-semibold">{t('ingestingFiles')}</span>
+                    <span className="font-bold text-[var(--text-primary)]">{ingestionProgress}%</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--bg-surface-2)] border border-[var(--border-subtle)]">
+                    <div
+                      className="h-full bg-[#FF5A1F] transition-all duration-200 ease-out rounded-full"
+                      style={{ width: `${ingestionProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-[var(--text-muted)] font-mono">
+                    {t('zeroBytesUploadedNotice')}
+                  </p>
+                </div>
+              )}
 
-              <div className="flex items-center gap-1.5 font-mono text-[10px] text-[var(--text-muted)]">
-                <Network className="h-3 w-3 opacity-60" strokeWidth={1} />
-                <span>Zero Cloud Roundtrips</span>
-              </div>
+              {/* Step 2 & 3: Staged Files Review, Live Conversion & Instant Download */}
+              {hasFiles && !isIngestingFiles && (
+                <StagedFilesWorkbench
+                  files={workbenchFiles}
+                  conversionState={conversionState}
+                  onRemoveFile={handleRemoveStagedFile}
+                  onAddMoreFiles={() => addMoreInputRef.current?.click()}
+                  onClearAll={handleClearAll}
+                  onStartConversion={handleStartConversion}
+                  targetMimeType={targetMimeType}
+                  onTargetMimeChange={handleFormatChange}
+                  activeFileType={activeFileType}
+                  isProcessing={isProcessing}
+                  processingStep={processingStep}
+                  processingProgress={processingProgress}
+                  onTriggerPdfMerge={handleTriggerPdfMerge}
+                  pdfCount={pdfCount}
+                  onDownloadIndividual={handleDownloadIndividual}
+                  onDownloadAllZip={handleDownloadAllZip}
+                  autoDownload={autoDownload}
+                  onToggleAutoDownload={handleToggleAutoDownload}
+                  wasAutoDownloaded={wasAutoDownloaded}
+                />
+              )}
             </div>
-
-            {/* 4. Batch Processing Queue HUD */}
-            <AnimatePresence>
-              {queue.length > 0 && (
-                <BatchQueueHUD
-                  queue={queue}
-                  poolStats={poolStats}
-                  onClearQueue={clearQueue}
-                  onDownloadIndividual={downloadIndividual}
-                />
-              )}
-            </AnimatePresence>
-
-            {/* Single File Detailed HUD */}
-            <AnimatePresence>
-              {singleTelemetryItem && (
-                <TelemetryHUD
-                  telemetry={singleTelemetryItem.telemetry}
-                  downloadUrl={singleTelemetryItem.downloadUrl}
-                  outputFileName={singleTelemetryItem.outputFileName}
-                  onReset={clearQueue}
-                  onDownload={() => downloadIndividual(singleTelemetryItem.id)}
-                  showRenderPulse={showRenderPulse}
-                />
-              )}
-            </AnimatePresence>
           </div>
-        </div>
-
-        {/* 5. Deep-Tech Diagnostics & Kernel Console */}
-        <EngineLogConsole logs={logs} />
+        )}
       </main>
 
-      {/* Floating Keyboard Shortcuts Pill - Hidden on touch/mobile devices */}
-      <aside aria-label="Keyboard Shortcuts" className="sticky bottom-10 z-40 mx-auto max-w-fit px-4 pointer-events-none hidden md:flex">
-        <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-[var(--border-color)] bg-[var(--bg-surface-1)]/95 px-4 py-1.5 text-[11px] font-mono text-[var(--text-muted)] backdrop-blur-md shadow-xl">
-          <div className="flex items-center gap-1">
-            <Command className="h-3 w-3 text-[#FF5A1F]" />
-            <span className="text-[var(--text-primary)]">Hotkeys:</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="rounded bg-[var(--bg-surface-2)] px-1.5 py-0.5 border border-[var(--border-color)] text-[var(--text-primary)]">
-              ⌘V
-            </span>
-            <span>Paste</span>
-          </div>
-          <span className="text-[var(--border-color)]">•</span>
-          <div className="flex items-center gap-2">
-            <span className="rounded bg-[var(--bg-surface-2)] px-1.5 py-0.5 border border-[var(--border-color)] text-[var(--text-primary)]">
-              ⌘S
-            </span>
-            <span>Download</span>
-          </div>
-          <span className="text-[var(--border-color)]">•</span>
-          <div className="flex items-center gap-2">
-            <span className="rounded bg-[var(--bg-surface-2)] px-1.5 py-0.5 border border-[var(--border-color)] text-[var(--text-primary)]">
-              ESC
-            </span>
-            <span>Clear</span>
-          </div>
-        </div>
-      </aside>
-
-      {/* Hardware & Runtime Diagnostics Bar */}
-      <RuntimeMonitor poolStats={poolStats} />
-
-      {/* Minimalist Footer with OmniShift Brand Icon */}
-      <footer className="w-full border-t border-[var(--border-color)] bg-[var(--bg-canvas)] py-3.5 text-center transition-colors">
-        <div className="mx-auto flex max-w-5xl flex-col sm:flex-row items-center justify-between gap-2 px-4 sm:px-6 text-[11px] font-mono text-[var(--text-muted)]">
-          <div className="flex items-center gap-2">
-            <img src={appIcon} alt="OmniShift" className="h-4 w-4 object-contain" />
-            <span>OmniShift Engine • Multithreaded Local Compute Platform</span>
-          </div>
-          <span className="text-[var(--text-muted)] opacity-60">
-            Transferable ArrayBuffers • In-RAM .ZIP Packaging
-          </span>
-        </div>
-      </footer>
-
-      {/* Interactive System Architecture Modal */}
-      <ArchitectureModal
-        isOpen={isArchModalOpen}
-        onClose={() => setIsArchModalOpen(false)}
-      />
+      {/* 5. Minimalist Modern Footer (with Language & Light/Dark/System Theme Controls) */}
+      <Footer />
     </div>
   );
 };

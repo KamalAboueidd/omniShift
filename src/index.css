@@ -13,14 +13,14 @@
 }
 
 html.light {
-  --bg-canvas: #FAFAFA;
+  --bg-canvas: #F8F9FA;
   --bg-surface-1: #FFFFFF;
-  --bg-surface-2: #F4F4F5;
-  --border-color: rgba(0, 0, 0, 0.08);
-  --border-subtle: rgba(0, 0, 0, 0.04);
-  --text-primary: #09090B;
-  --text-muted: #71717A;
-  --text-subtle: rgba(0, 0, 0, 0.45);
+  --bg-surface-2: #F1F3F5;
+  --border-color: rgba(0, 0, 0, 0.12);
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --text-primary: #0F172A;
+  --text-muted: #64748B;
+  --text-subtle: rgba(0, 0, 0, 0.5);
   --accent-orange: #FF5A1F;
 }
 
@@ -41,6 +41,11 @@ html.light {
     letter-spacing: -0.025em;
     overflow-x: hidden;
     transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  html[lang="ar"] body, html[lang="ar"] button, html[lang="ar"] input {
+    font-family: 'Alexandria', 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+    letter-spacing: 0;
   }
 
   code, pre, .font-mono {

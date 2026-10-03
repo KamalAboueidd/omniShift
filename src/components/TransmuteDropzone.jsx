@@ -1,10 +1,8 @@
 import { useRef, useState, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UploadCloud, Cpu, CheckCircle2 } from 'lucide-react';
+import { UploadCloud, FileText, FileSpreadsheet, Cpu, CheckCircle2 } from 'lucide-react';
 import { cn } from '../lib/utils';
-
-const SUPPORTED_EXTENSIONS = ['PNG', 'JPG', 'WEBP', 'AVIF', 'PDF', 'SVG', 'JSON', 'CSV'];
-const ACCEPT_ATTRIBUTE = '.png,.jpg,.jpeg,.webp,.avif,.heic,.pdf,.svg,.json,.csv,image/png,image/jpeg,image/webp,image/avif,application/pdf,image/svg+xml,application/json,text/csv';
+import { useLanguage } from '../context/LanguageContext';
 
 export const TransmuteDropzone = memo(function TransmuteDropzone({
   status,
@@ -13,7 +11,9 @@ export const TransmuteDropzone = memo(function TransmuteDropzone({
   activeFileName,
   showRenderPulse = false,
   batchCount = 0,
+  activeMode = 'image',
 }) {
+  const { t } = useLanguage();
   const [isDragOver, setIsDragOver] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const fileInputRef = useRef(null);
@@ -71,6 +71,33 @@ export const TransmuteDropzone = memo(function TransmuteDropzone({
 
   const isBusy = status === 'analyzing' || status === 'transmuting';
 
+  const modeConfig = {
+    image: {
+      headline: t('dropHeadlineImage'),
+      accept: '.png,.jpg,.jpeg,.webp,.avif,.heic,.svg,image/png,image/jpeg,image/webp,image/avif,image/svg+xml',
+      extensions: ['PNG', 'JPG', 'WEBP', 'AVIF', 'SVG'],
+      subtitle: t('dropSubtitleImage'),
+      Icon: UploadCloud,
+    },
+    pdf: {
+      headline: t('dropHeadlinePdf'),
+      accept: '.pdf,application/pdf',
+      extensions: [t('dropMultiPdfBadge')],
+      subtitle: t('dropSubtitlePdf'),
+      Icon: FileText,
+    },
+    data: {
+      headline: t('dropHeadlineData'),
+      accept: '.json,.csv,application/json,text/csv',
+      extensions: ['JSON', 'CSV'],
+      subtitle: t('dropSubtitleData'),
+      Icon: FileSpreadsheet,
+    },
+  };
+
+  const currentMode = modeConfig[activeMode] || modeConfig.image;
+  const ModeIcon = currentMode.Icon;
+
   return (
     <div
       style={{ contain: 'layout paint' }}
@@ -88,7 +115,7 @@ export const TransmuteDropzone = memo(function TransmuteDropzone({
         ref={fileInputRef}
         type="file"
         multiple
-        accept={ACCEPT_ATTRIBUTE}
+        accept={currentMode.accept}
         onChange={handleInputChange}
         className="sr-only"
         aria-label="Upload files for batch client-side transmutation"
@@ -115,12 +142,12 @@ export const TransmuteDropzone = memo(function TransmuteDropzone({
           damping: 30,
         }}
         className={cn(
-          'group relative flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed p-6 sm:p-10 text-center transition-colors outline-none select-none',
-          'bg-[var(--bg-surface-1)]',
+          'group relative flex min-h-[240px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 sm:p-10 text-center transition-all outline-none select-none',
+          'bg-zinc-50/90 dark:bg-zinc-900/40 shadow-xs',
           isDragOver
-            ? 'border-[#FF5A1F] bg-[#FF5A1F]/[0.05]'
-            : 'border-[var(--border-color)] hover:border-[#FF5A1F]/40 hover:bg-[var(--bg-surface-2)]',
-          isFocused && 'ring-1 ring-[#FF5A1F]/50 border-[#FF5A1F]',
+            ? 'border-[#FF5A1F] bg-[#FF5A1F]/[0.08] scale-[1.01]'
+            : 'border-zinc-300 dark:border-zinc-700/80 hover:border-[#FF5A1F] hover:bg-zinc-100/90 dark:hover:bg-zinc-900/70',
+          isFocused && 'ring-2 ring-[#FF5A1F]/40 border-[#FF5A1F]',
           isBusy && 'cursor-wait pointer-events-none'
         )}
       >
@@ -135,22 +162,22 @@ export const TransmuteDropzone = memo(function TransmuteDropzone({
               transition={{ duration: 0.15 }}
               className="flex flex-col items-center gap-3.5"
             >
-              <Cpu className="h-8 w-8 text-[#FF5A1F] animate-pulse" strokeWidth={1.25} />
+              <Cpu className="h-9 w-9 text-[#FF5A1F] animate-pulse" strokeWidth={1.5} />
 
               <div className="space-y-1">
                 <div className="flex items-center justify-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#FF5A1F] animate-ping" />
+                  <span className="h-2 w-2 rounded-full bg-[#FF5A1F] animate-ping" />
                   <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">
                     {processingPhase || 'WORKER_POOL_PARALLEL'}
                   </p>
                 </div>
                 <p className="max-w-xs truncate font-mono text-[11px] text-[var(--text-muted)]">
-                  {batchCount > 1 ? `Parallel Batch (${batchCount} Files)` : activeFileName}
+                  {batchCount > 1 ? t('parallelBatch', { count: batchCount }) : activeFileName}
                 </p>
               </div>
 
               {/* Progress Track Micro-Line */}
-              <div className="h-[2px] w-48 overflow-hidden rounded-full bg-[var(--border-color)]">
+              <div className="h-1 w-56 overflow-hidden rounded-full bg-[var(--border-color)]">
                 <motion.div
                   className="h-full bg-[#FF5A1F]"
                   initial={{ transform: 'translateX(-100%)' }}
@@ -171,54 +198,54 @@ export const TransmuteDropzone = memo(function TransmuteDropzone({
               animate={{ opacity: 1, transform: 'scale(1)' }}
               exit={{ opacity: 0, transform: 'scale(0.98)' }}
               transition={{ duration: 0.15 }}
-              className="flex flex-col items-center gap-2.5"
+              className="flex flex-col items-center gap-3"
             >
-              <CheckCircle2 className="h-8 w-8 text-emerald-500 dark:text-emerald-400" strokeWidth={1.25} />
+              <CheckCircle2 className="h-9 w-9 text-emerald-500 dark:text-emerald-400" strokeWidth={1.5} />
 
               <div className="space-y-1">
-                <p className="text-sm font-medium tracking-tight text-[var(--text-primary)]">
-                  Transmutation Cycle Complete
+                <p className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
+                  {t('cycleComplete')}
                 </p>
-                <p className="font-mono text-xs text-[var(--text-muted)]">
-                  {batchCount > 1 ? `${batchCount} Files Processed in Parallel` : `${activeFileName} Ready`}
+                <p className="text-xs text-[var(--text-muted)]">
+                  {batchCount > 1 ? t('filesProcessed', { count: batchCount }) : t('readySingle', { name: activeFileName })}
                 </p>
               </div>
 
-              <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors">
-                <span>Drop additional files or click to add batch</span>
+              <span className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)] group-hover:text-[#FF5A1F] transition-colors">
+                <span>{t('dropMoreOrClick')}</span>
               </span>
             </motion.div>
           ) : (
-            /* STATE 3: Idle - Clean upload icon with NO box/border/background */
+            /* STATE 3: Idle - Highly visible interactive dropzone with clear cues */
             <motion.div
               key="idle"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex flex-col items-center gap-2.5"
+              className="flex flex-col items-center gap-3 max-w-md"
             >
-              <UploadCloud
-                className="h-9 w-9 text-[var(--text-muted)] group-hover:text-[#FF5A1F] transition-colors"
-                strokeWidth={1.2}
+              <ModeIcon
+                className="h-10 w-10 text-[#FF5A1F] transition-transform group-hover:scale-110"
+                strokeWidth={1.5}
               />
 
               <div className="space-y-1">
-                <p className="text-sm font-medium tracking-tight text-[var(--text-primary)]">
-                  Drop 1 to 50+ files to transmute or{' '}
-                  <span className="text-[#FF5A1F] underline underline-offset-4 decoration-[var(--border-color)] group-hover:decoration-[#FF5A1F]/40 transition-colors">
-                    browse local drive
+                <p className="text-sm sm:text-base font-semibold tracking-tight text-[var(--text-primary)]">
+                  {currentMode.headline}{' '}
+                  <span className="text-[#FF5A1F] hover:underline underline-offset-4 font-bold">
+                    {t('browseFiles')}
                   </span>
                 </p>
                 <p className="text-xs text-[var(--text-muted)]">
-                  Multi-threaded Worker Pool • Zero bytes uploaded to cloud
+                  {currentMode.subtitle}
                 </p>
               </div>
 
-              <div className="mt-2.5 flex flex-wrap items-center justify-center gap-1.5">
-                {SUPPORTED_EXTENSIONS.map((ext) => (
+              <div className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
+                {currentMode.extensions.map((ext) => (
                   <span
                     key={ext}
-                    className="rounded border border-[var(--border-subtle)] bg-[var(--bg-surface-2)] px-2 py-0.5 font-mono text-[10px] text-[var(--text-muted)] transition-colors group-hover:border-[var(--border-color)]"
+                    className="rounded border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-800/80 px-2 py-0.5 font-mono text-[10px] font-medium text-zinc-600 dark:text-zinc-400 shadow-2xs"
                   >
                     {ext}
                   </span>

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { workerPool } from '../lib/workerPool';
 import { memoryManager } from '../lib/memoryManager';
+import { triggerDownload } from '../lib/utils';
 
 export function useBatchTransmute(options = {}) {
   const { onLog } = options;
@@ -50,14 +51,10 @@ export function useBatchTransmute(options = {}) {
   const downloadIndividual = useCallback((id) => {
     setQueue((currentQueue) => {
       const item = currentQueue.find((i) => i.id === id);
-      if (item && item.downloadUrl) {
-        const a = document.createElement('a');
-        a.href = item.downloadUrl;
-        a.download = item.outputFileName || item.fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        onLogRef.current?.('INFO', `Downloaded batch item: ${a.download}`);
+      if (item && (item.blob || item.downloadUrl)) {
+        const filename = item.outputFileName || item.fileName || 'download';
+        triggerDownload(item.blob || item.downloadUrl, filename);
+        onLogRef.current?.('INFO', `Downloaded batch item: ${filename}`);
       }
       return currentQueue;
     });
@@ -127,19 +124,20 @@ export function useBatchTransmute(options = {}) {
         extraMeta,
       };
 
-      setQueue([
-        {
-          ...mergeItem,
-          status: 'READY',
-          phase: 'READY',
-          telemetry,
-          downloadUrl: url,
-          blob,
-        },
-      ]);
+      const readyMergedItem = {
+        ...mergeItem,
+        status: 'READY',
+        phase: 'READY',
+        telemetry,
+        downloadUrl: url,
+        blob,
+      };
+
+      setQueue([readyMergedItem]);
 
       setIsProcessing(false);
       onLogRef.current?.('INFO', `Successfully merged ${pdfFiles.length} PDFs (${extraMeta?.totalPages || 0} total pages) in ${latencyMs}ms.`);
+      return [readyMergedItem];
     } catch (err) {
       setIsProcessing(false);
       setQueue([
@@ -150,10 +148,11 @@ export function useBatchTransmute(options = {}) {
         },
       ]);
       onLogRef.current?.('KERNEL', `PDF merge failed: ${err.message}`);
+      return [];
     }
   }, []);
 
-  const enqueueFiles = useCallback(async (files, targetMimeType = 'image/webp', quality = 0.85) => {
+  const enqueueFiles = useCallback(async (files, targetMimeType = 'image/webp', quality = 1.0) => {
     if (!files || files.length === 0) return;
 
     setIsProcessing(true);
@@ -192,6 +191,8 @@ export function useBatchTransmute(options = {}) {
         return 'min.svg';
       }
       if (lowerName.endsWith('.pdf')) {
+        if (targetMime.includes('word') || targetMime.includes('docx')) return 'docx';
+        if (targetMime.includes('plain') || targetMime.includes('txt')) return 'txt';
         return 'pdf';
       }
       const extMap = {
@@ -200,17 +201,19 @@ export function useBatchTransmute(options = {}) {
         'image/png': 'png',
         'image/jpeg': 'jpg',
         'application/pdf': 'pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+        'text/plain': 'txt',
       };
       return extMap[targetMime] || 'webp';
     };
 
     // Dispatch each task concurrently to the workerPool
-    for (const item of newItems) {
+    const taskPromises = newItems.map((item) => {
       const targetExt = resolveOutputExt(item.fileName, targetMimeType);
       const rawName = item.fileName.substring(0, item.fileName.lastIndexOf('.')) || item.fileName;
-      const outName = `${rawName}.transmuted.${targetExt}`;
+      const outName = `${rawName}.${targetExt}`;
 
-      workerPool.dispatchTask({
+      return workerPool.dispatchTask({
         id: item.id,
         file: item.file,
         targetMimeType,
@@ -261,26 +264,25 @@ export function useBatchTransmute(options = {}) {
           extraMeta,
         };
 
+        const readyItem = {
+          ...item,
+          status: 'READY',
+          phase: 'READY',
+          telemetry,
+          downloadUrl: url,
+          outputFileName: outName,
+          blob,
+        };
+
         setQueue((prevQueue) =>
-          prevQueue.map((q) =>
-            q.id === item.id
-              ? {
-                  ...q,
-                  status: 'READY',
-                  phase: 'READY',
-                  telemetry,
-                  downloadUrl: url,
-                  outputFileName: outName,
-                  blob,
-                }
-              : q
-          )
+          prevQueue.map((q) => (q.id === item.id ? readyItem : q))
         );
 
         onLogRef.current?.(
           'INFO',
-          `[${workerCoreId}] Transmuted "${item.fileName}" -> ${telemetry.targetFormat} in ${latencyMs}ms (${reductionPercentage}%).`
+          `[${workerCoreId}] Converted "${item.fileName}" -> ${telemetry.targetFormat} in ${latencyMs}ms (${reductionPercentage}%).`
         );
+        return readyItem;
       })
       .catch((err) => {
         setQueue((prevQueue) =>
@@ -289,7 +291,108 @@ export function useBatchTransmute(options = {}) {
           )
         );
         onLogRef.current?.('KERNEL', `Batch item "${item.fileName}" failed: ${err.message}`);
+        return null;
       });
+    });
+
+    return Promise.all(taskPromises);
+  }, []);
+
+  // Dynamic re-computation for single items
+  const retransmuteItem = useCallback(async (item, targetMimeType = 'image/webp', quality = 1.0) => {
+    if (!item || !item.file) return null;
+
+    // Revoke previous URL to prevent client memory leaks
+    if (item.downloadUrl) {
+      memoryManager.revoke(item.downloadUrl);
+    }
+
+    const resolveOutputExt = (fileName, targetMime) => {
+      const lower = (fileName || '').toLowerCase();
+      if (lower.endsWith('.pdf')) {
+        if (targetMime.includes('word') || targetMime.includes('docx')) return 'docx';
+        if (targetMime.includes('plain') || targetMime.includes('txt')) return 'txt';
+        return 'pdf';
+      }
+      const extMap = {
+        'image/webp': 'webp',
+        'image/avif': 'avif',
+        'image/png': 'png',
+        'image/jpeg': 'jpg',
+        'application/pdf': 'pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+        'text/plain': 'txt',
+      };
+      return extMap[targetMime] || 'webp';
+    };
+
+    const targetExt = resolveOutputExt(item.fileName || item.name, targetMimeType);
+    const rawName = (item.fileName || item.name).substring(0, (item.fileName || item.name).lastIndexOf('.')) || (item.fileName || item.name);
+    const outName = `${rawName}.${targetExt}`;
+
+    try {
+      const msg = await workerPool.dispatchTask({
+        id: `re_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        file: item.file,
+        targetMimeType,
+        quality,
+      });
+
+      const { outputBuffer, outputMimeType, latencyMs, originalBytes, transmutedBytes, extraMeta, workerCoreId } = msg;
+      const blob = new Blob([outputBuffer], { type: outputMimeType });
+      const url = memoryManager.create(blob, 'batch-result');
+
+      const reductionPercentage = parseFloat(
+        (((transmutedBytes - originalBytes) / Math.max(1, originalBytes)) * 100).toFixed(1)
+      );
+
+      const throughputMbps = parseFloat(
+        ((originalBytes / (1024 * 1024)) / (Math.max(1, latencyMs) / 1000)).toFixed(2)
+      );
+
+      const formatFromMime = (mime) => {
+        if (!mime) return 'RAW';
+        return mime.split('/')[1]?.toUpperCase() || 'RAW';
+      };
+
+      const telemetry = {
+        id: item.id,
+        fileName: item.fileName || item.name,
+        sourceFormat: formatFromMime(item.file.type),
+        targetFormat: formatFromMime(outputMimeType),
+        originalBytes,
+        transmutedBytes,
+        reductionPercentage,
+        latencyMs,
+        throughputMbps,
+        workerCoreId,
+        timestamp: Date.now(),
+        extraMeta,
+      };
+
+      const updatedItem = {
+        ...item,
+        status: 'READY',
+        phase: 'READY',
+        telemetry,
+        downloadUrl: url,
+        outputFileName: outName,
+        blob,
+      };
+
+      setQueue((prevQueue) =>
+        prevQueue.map((q) => (q.id === item.id ? updatedItem : q))
+      );
+
+      onLogRef.current?.(
+        'INFO',
+        `Re-computed "${item.fileName || item.name}" -> ${telemetry.targetFormat} at ${Math.round(quality * 100)}% quality (${reductionPercentage}%).`
+      );
+
+      return updatedItem;
+    } catch (err) {
+      onLogRef.current?.('KERNEL', `Re-computation failed: ${err.message}`);
+      return null;
     }
   }, []);
 
@@ -301,5 +404,6 @@ export function useBatchTransmute(options = {}) {
     clearQueue,
     downloadIndividual,
     mergePdfFiles,
+    retransmuteItem,
   };
 }
