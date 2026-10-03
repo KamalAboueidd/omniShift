@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "clsx": "^2.1.1",
+    "docx": "^9.8.1",
     "framer-motion": "^14.0.0",
     "jszip": "^3.10.2",
     "lucide-react": "^1.51.0",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tailwind-merge": "^3.7.0"

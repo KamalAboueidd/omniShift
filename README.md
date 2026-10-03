@@ -2,12 +2,6 @@
 
 A high-performance, strictly client-side data transmutation engine designed for contemporary web standards. OmniShift executes image decoding, quantization, vector optimization, document compilation, and tabular serialization directly within volatile browser memory (RAM), eliminating backend computation and network roundtrips.
 
-```
-================================================================================
-CORE ARCHITECTURAL GUARANTEE:
-100% Client-Side Computation | 0 Bytes Network Ingress/Egress | Total Isolation
-================================================================================
-```
 
 ---
 
@@ -119,32 +113,6 @@ The analysis highlights five fundamental operational metrics:
 
 ## 3. System Architecture & Technical Specifications
 
-```
-+-------------------------------------------------------------------------------+
-|                                MAIN UI THREAD                                 |
-|                                                                               |
-|  [ File Ingestion ]  --->  [ File.slice() / ArrayBuffer ]  --->  [ Dispatch ] |
-+---------------------------------------|---------------------------------------+
-                                        | Transferable Objects (Zero-Copy)
-                                        v
-+-------------------------------------------------------------------------------+
-|                            WEB WORKER POOL                                    |
-|               (Threads: Math.max(1, min(HardwareConcurrency - 1, 6)))         |
-|                                                                               |
-|  Worker 1..N:                                                                 |
-|  +----------------------+  +----------------------+  +---------------------+  |
-|  |   OffscreenCanvas    |  |    PDF Subsystem     |  |   Tabular Engine    |  |
-|  |  WebP / AVIF / PNG   |  |  In-Memory pdf-lib   |  |  CSV / JSON / XLSX  |  |
-|  +----------------------+  +----------------------+  +---------------------+  |
-+---------------------------------------|---------------------------------------+
-                                        | Transferable Output Buffer
-                                        v
-+-------------------------------------------------------------------------------+
-|                           MEMORY LIFECYCLE REGISTRY                           |
-|                                                                               |
-|   [ Blob Construction ]  --->  [ URL Cache ]  --->  [ Deterministic Revocation ]
-+-------------------------------------------------------------------------------+
-```
 
 ### 3.1 Zero-Copy Transferable Pipeline
 Standard Web Worker communication via `postMessage()` relies on structured cloning, which duplicates megabytes of memory across thread boundaries. OmniShift completely circumvents this memory penalty by transferring byte ownership directly via Transferable Objects:
