@@ -42,14 +42,10 @@ export const Footer = memo(function Footer() {
   return (
     <footer className="w-full mt-20 sm:mt-28 border-t border-[var(--border-subtle)] bg-[var(--bg-canvas)] py-6 text-center transition-colors">
       <div className="mx-auto flex max-w-5xl flex-col sm:flex-row items-center justify-between gap-4 px-4 sm:px-6 text-xs text-[var(--text-muted)]">
-        {/* Left: Brand & Guarantee */}
-        <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 text-[11px] font-mono">
-          <div className="flex items-center gap-2">
-            <img src={appIcon} alt="OmniShift" className="h-4 w-4 object-contain" />
-            <span className="font-semibold text-[var(--text-primary)]">OmniShift</span>
-          </div>
-          <span className="opacity-40 hidden sm:inline">•</span>
-          <span className="opacity-70">{t('footerGuarantee')}</span>
+        {/* Left: Brand */}
+        <div className="flex items-center gap-2 text-[11px] font-mono">
+          <img src={appIcon} alt="OmniShift" className="h-4 w-4 object-contain" />
+          <span className="font-semibold text-[var(--text-primary)]">OmniShift</span>
         </div>
 
         {/* Right: Theme Popover & Borderless Language Switcher */}

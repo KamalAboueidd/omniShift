@@ -113,7 +113,28 @@ export async function localFallbackTransmute(task) {
     };
   }
 
-  // 4. Standard Raster Image Transmutation (WebP, PNG, JPEG, AVIF)
+  // 4. Single PDF Transmutation (Compress, Word DOCX, Plain Text)
+  if (lowerName.endsWith('.pdf') || file?.type === 'application/pdf') {
+    const { executePdfTransmute } = await import('../workers/engines/pdfEngine');
+    const fileBuffer = await file.arrayBuffer();
+    const pdfResult = await executePdfTransmute(fileBuffer, targetMimeType);
+    const latencyMs = Math.max(1, Math.round(performance.now() - startTime));
+
+    return {
+      type: 'TRANSMUTE_SUCCESS',
+      id,
+      fileName,
+      outputBuffer: pdfResult.outputBuffer,
+      outputMimeType: pdfResult.outputMimeType,
+      latencyMs,
+      originalBytes: file.size,
+      transmutedBytes: pdfResult.outputBuffer.byteLength,
+      extraMeta: pdfResult.extraMeta,
+      workerCoreId: 'main-thread-fallback',
+    };
+  }
+
+  // 5. Standard Raster Image Transmutation (WebP, PNG, JPEG, AVIF)
   const fileBuffer = await file.arrayBuffer();
   const sourceBlob = new Blob([fileBuffer], { type: file.type || 'image/jpeg' });
   let imageSource;

@@ -210,7 +210,11 @@ export function useBatchTransmute(options = {}) {
     // Dispatch each task concurrently to the workerPool
     const taskPromises = newItems.map((item) => {
       const targetExt = resolveOutputExt(item.fileName, targetMimeType);
-      const rawName = item.fileName.substring(0, item.fileName.lastIndexOf('.')) || item.fileName;
+      let rawName = item.fileName.includes('.')
+        ? item.fileName.substring(0, item.fileName.lastIndexOf('.'))
+        : item.fileName;
+      rawName = (rawName || '').replace(/^\.+/, '').trim();
+      if (!rawName) rawName = 'file';
       const outName = `${rawName}.${targetExt}`;
 
       return workerPool.dispatchTask({

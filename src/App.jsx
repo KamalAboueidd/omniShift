@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { TransmuteDropzone } from './components/TransmuteDropzone';
@@ -171,6 +171,22 @@ export const App = () => {
     setWasAutoDownloaded(false);
     clearQueue();
   }, [clearQueue]);
+
+  // Convert with another format without re-selecting files
+  const handleReconvertAnotherFormat = useCallback(() => {
+    setWorkbenchFiles((prev) =>
+      prev.map((item) => ({
+        id: item.id || `file_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        file: item.file,
+        name: item.file?.name || item.name || item.fileName,
+        size: item.file?.size || item.size || item.originalBytes,
+        type: item.file?.type || item.type,
+        status: 'staged',
+      }))
+    );
+    setConversionState('staged');
+    setWasAutoDownloaded(false);
+  }, []);
 
   // Individual file direct download handler
   const handleDownloadIndividual = useCallback((id) => {
@@ -473,6 +489,7 @@ export const App = () => {
                   pdfCount={pdfCount}
                   onDownloadIndividual={handleDownloadIndividual}
                   onDownloadAllZip={handleDownloadAllZip}
+                  onReconvertAnotherFormat={handleReconvertAnotherFormat}
                   autoDownload={autoDownload}
                   onToggleAutoDownload={handleToggleAutoDownload}
                   wasAutoDownloaded={wasAutoDownloaded}

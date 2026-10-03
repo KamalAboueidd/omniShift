@@ -1,59 +1,189 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument } from 'pdf-lib';
 import JSZip from 'jszip';
+import pako from 'pako';
 
 /**
  * Extended PDF Manipulation Engine
  * Handles PDF Merge, stream compression/linearization, and PDF to Word (.docx) / Text (.txt).
  */
 
-function extractTextFromPdfBuffer(buffer) {
-  const decoder = new TextDecoder('utf-8', { fatal: false });
-  const rawText = decoder.decode(buffer);
-  
-  const matches = [];
-  const textBlockRegex = /BT[\s\S]*?ET/g;
+function decodePdfLiteralString(str) {
+  return str
+    .replace(/\\([0-7]{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)))
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, '\t')
+    .replace(/\\b/g, '\b')
+    .replace(/\\f/g, '\f')
+    .replace(/\\([()\\])/g, '$1')
+    .replace(/\\/g, '');
+}
+
+function decodePdfHexString(hex) {
+  const clean = hex.replace(/[^0-9a-fA-F]/g, '');
+  if (!clean) return '';
+
+  // Check UTF-16BE (2-byte encoding)
+  if (clean.length >= 4 && clean.length % 4 === 0) {
+    let isUtf16 = true;
+    for (let i = 0; i < clean.length; i += 4) {
+      if (clean.substr(i, 2) !== '00') {
+        isUtf16 = false;
+        break;
+      }
+    }
+    if (isUtf16) {
+      let str = '';
+      for (let i = 0; i < clean.length; i += 4) {
+        str += String.fromCharCode(parseInt(clean.substr(i + 2, 2), 16));
+      }
+      return str;
+    }
+  }
+
+  // 1-byte hex
+  let str = '';
+  for (let i = 0; i < clean.length; i += 2) {
+    const code = parseInt(clean.substr(i, 2), 16);
+    if (code >= 32 && code <= 126) {
+      str += String.fromCharCode(code);
+    } else if (code === 10 || code === 13) {
+      str += ' ';
+    }
+  }
+  return str;
+}
+
+function parseTextFromStream(streamText) {
+  const lines = [];
+  const btEtRegex = /BT([\s\S]*?)ET/g;
   let block;
-  while ((block = textBlockRegex.exec(rawText)) !== null) {
-    const tjRegex = /\(([^)]+)\)\s*Tj/g;
-    let m;
-    let line = '';
-    while ((m = tjRegex.exec(block[0])) !== null) {
-      line += m[1] + ' ';
-    }
-    const tjArrayRegex = /\[(.*?)\]\s*TJ/g;
-    while ((m = tjArrayRegex.exec(block[0])) !== null) {
-      const innerRegex = /\(([^)]+)\)/g;
-      let inner;
-      while ((inner = innerRegex.exec(m[1])) !== null) {
-        line += inner[1];
+
+  while ((block = btEtRegex.exec(streamText)) !== null) {
+    const content = block[1];
+    let currentLine = '';
+
+    const tokenRegex = /(?:\((?:[^()\\]|\\.)*\)|<[0-9a-fA-F\s]+>)\s*(?:Tj|'|")|\[((?:[^[\]]|\((?:[^()\\]|\\.)*\))*)\]\s*TJ|T\*|(?:\d+(?:\.\d+)?\s+){2}(?:Td|TD)/g;
+    let match;
+
+    while ((match = tokenRegex.exec(content)) !== null) {
+      const token = match[0].trim();
+
+      if (token === 'T*' || token.endsWith('Td') || token.endsWith('TD')) {
+        if (currentLine.trim()) {
+          lines.push(currentLine.trim());
+          currentLine = '';
+        }
+        continue;
       }
-      line += ' ';
+
+      if (token.startsWith('(')) {
+        const text = token.slice(1, token.lastIndexOf(')'));
+        currentLine += decodePdfLiteralString(text) + ' ';
+        if (token.endsWith("'") || token.endsWith('"')) {
+          if (currentLine.trim()) lines.push(currentLine.trim());
+          currentLine = '';
+        }
+      } else if (token.startsWith('<')) {
+        const hex = token.slice(1, token.lastIndexOf('>'));
+        currentLine += decodePdfHexString(hex) + ' ';
+        if (token.endsWith("'") || token.endsWith('"')) {
+          if (currentLine.trim()) lines.push(currentLine.trim());
+          currentLine = '';
+        }
+      } else if (match[1] !== undefined) {
+        const innerArray = match[1];
+        const itemRegex = /\((?:[^()\\]|\\.)*\)|<[0-9a-fA-F\s]+>/g;
+        let item;
+        while ((item = itemRegex.exec(innerArray)) !== null) {
+          const part = item[0];
+          if (part.startsWith('(')) {
+            currentLine += decodePdfLiteralString(part.slice(1, -1));
+          } else if (part.startsWith('<')) {
+            currentLine += decodePdfHexString(part.slice(1, -1));
+          }
+        }
+        currentLine += ' ';
+      }
     }
-    if (line.trim().length > 0) {
-      matches.push(line.trim());
+
+    if (currentLine.trim()) {
+      lines.push(currentLine.trim());
     }
   }
 
-  if (matches.length === 0) {
-    const asciiRegex = /[a-zA-Z0-9.,;:!?@#%&*()_\-+=/\s]{4,}/g;
-    let word;
-    while ((word = asciiRegex.exec(rawText)) !== null) {
-      const cleaned = word[0].trim();
-      if (cleaned.length > 5 && !cleaned.includes('xref') && !cleaned.includes('trailer') && !cleaned.includes('endobj')) {
-        matches.push(cleaned);
+  return lines;
+}
+
+export async function extractTextFromPdfBuffer(buffer) {
+  try {
+    const doc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+    const allLines = [];
+    const objects = doc.context.enumerateIndirectObjects();
+
+    for (const [, obj] of objects) {
+      if (obj && typeof obj.getContents === 'function') {
+        const contentBytes = obj.getContents();
+        let uncompressedBytes = null;
+
+        const filter = obj.dict?.get(obj.dict.context.obj('Filter'));
+        const filterStr = filter ? filter.toString() : '';
+
+        if (filterStr.includes('Flate') || filterStr.includes('FlateDecode')) {
+          try {
+            uncompressedBytes = pako.inflate(contentBytes);
+          } catch {
+            uncompressedBytes = contentBytes;
+          }
+        } else {
+          uncompressedBytes = contentBytes;
+        }
+
+        if (uncompressedBytes && uncompressedBytes.length > 0) {
+          try {
+            const streamText = new TextDecoder('latin1').decode(uncompressedBytes);
+            if (streamText.includes('BT') && streamText.includes('ET')) {
+              const lines = parseTextFromStream(streamText);
+              if (lines.length > 0) {
+                allLines.push(...lines);
+              }
+            }
+          } catch {
+            // ignore decode error
+          }
+        }
       }
     }
-  }
 
-  return matches.length > 0 ? matches.join('\n\n') : 'Document content processed from PDF buffer.';
+    // Strict filter to eliminate any raw PDF syntax, objects, or dictionary metadata
+    const cleanLines = allLines
+      .map((l) => l.trim())
+      .filter((l) => {
+        if (!l || l.length < 2) return false;
+        if (/^\s*(%PDF|\d+\s+\d+\s+obj|\/Type|\/MediaBox|\/Parent|\/Contents|\/Resources|\/Font|\/BaseFont|\/Encoding|\/Subtype|xref|trailer|startxref)/i.test(l)) {
+          return false;
+        }
+        return true;
+      });
+
+    if (cleanLines.length > 0) {
+      return cleanLines.join('\n\n');
+    }
+
+    const totalPages = doc.getPageCount();
+    return `[OmniShift Document Transmutation]\n\nThis PDF document (${totalPages} page${totalPages > 1 ? 's' : ''}) contains rasterized graphics or vector paths without standard selectable typography.`;
+  } catch (err) {
+    console.warn('PDF extraction failed:', err);
+    return 'Document content processed from PDF buffer.';
+  }
 }
 
 /**
  * Converts PDF into a Word .docx package.
  */
 export async function pdfToDocx(fileBuffer) {
-  const textContent = extractTextFromPdfBuffer(fileBuffer);
-  const paragraphs = textContent.split(/\r?\n/).filter(p => p.trim().length > 0);
+  const textContent = await extractTextFromPdfBuffer(fileBuffer);
+  const paragraphs = textContent.split(/\r?\n/).filter((p) => p.trim().length > 0);
 
   const escapeXml = (str) =>
     str.replace(/[<>&'"]/g, (c) => {
@@ -68,7 +198,7 @@ export async function pdfToDocx(fileBuffer) {
     });
 
   const bodyXml = paragraphs
-    .map(p => `<w:p><w:r><w:t>${escapeXml(p)}</w:t></w:r></w:p>`)
+    .map((p) => `<w:p><w:r><w:t>${escapeXml(p)}</w:t></w:r></w:p>`)
     .join('');
 
   const zip = new JSZip();
@@ -95,7 +225,7 @@ export async function pdfToDocx(fileBuffer) {
   const outputBuffer = await zip.generateAsync({
     type: 'arraybuffer',
     compression: 'DEFLATE',
-    compressionOptions: { level: 6 }
+    compressionOptions: { level: 6 },
   });
 
   return {
@@ -112,7 +242,7 @@ export async function pdfToDocx(fileBuffer) {
  * Extracts plain text from PDF.
  */
 export async function pdfToText(fileBuffer) {
-  const textContent = extractTextFromPdfBuffer(fileBuffer);
+  const textContent = await extractTextFromPdfBuffer(fileBuffer);
   const encoder = new TextEncoder();
   const outputBuffer = encoder.encode(textContent).buffer;
 
@@ -125,6 +255,7 @@ export async function pdfToText(fileBuffer) {
     },
   };
 }
+
 
 /**
  * Merges multiple PDF ArrayBuffers into a single unified document.

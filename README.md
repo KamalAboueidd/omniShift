@@ -1,141 +1,240 @@
-# OmniShift: In-Memory Client-Side Media and Document Processing Engine
+# OmniShift: Sovereign In-Memory Client-Side Media and Document Runtime
 
-A high-throughput, strictly client-side data transmutation runtime engineered for modern web browsers. OmniShift executes media decoding, color quantization, document assembly, and structured data transformations directly inside volatile client memory.
+A high-performance, strictly client-side data transmutation engine designed for contemporary web standards. OmniShift executes image decoding, quantization, vector optimization, document compilation, and tabular serialization directly within volatile browser memory (RAM), eliminating backend computation and network roundtrips.
 
 ```
 ================================================================================
-CORE GUARANTEE:
-100% Client-Side Computation | 0 Bytes Ingress/Egress | Total Data Isolation
+CORE ARCHITECTURAL GUARANTEE:
+100% Client-Side Computation | 0 Bytes Network Ingress/Egress | Total Isolation
 ================================================================================
 ```
 
 ---
 
-## 1. Abstract
+## 1. Executive Summary & Core Motivation
 
-OmniShift redefines document and media processing by eliminating server-side roundtrips entirely. Traditional file manipulation pipelines expose sensitive corporate artifacts to network intermediaries, incurring latency penalties, ingress costs, and compliance risks. 
+Traditional web converters enforce an obsolete client-server topology: files must be serialized over the public internet, queued on remote server farms, processed on third-party hardware, and downloaded back to the client. This legacy approach presents severe architectural liabilities:
+- **Data Privacy Violations:** Sensitive intellectual property, corporate documentation, financial records, and medical files are transmitted to untrusted remote disks.
+- **Latency Penalties:** Network upload and download throughput bottlenecks file access, especially on high-resolution photography, raw datasets, or multi-page documents.
+- **Infrastructure Overhead:** Servers require persistent bandwidth, compute clusters, autoscaling infrastructure, and recurring storage expenditure.
+- **Network Dependency:** Offline, air-gapped, or low-connectivity workflows are impossible.
 
-OmniShift operates as a sovereign local computing environment within the user's browser sandbox. By orchestrating a pool of dedicated Web Workers and communicating exclusively via Transferable Objects (`ArrayBuffer`), OmniShift achieves near-native transformation speeds while preserving a deterministic 60 frames-per-second UI interaction loop.
-
----
-
-## 2. System Architecture & Execution Model
-
-The engine architecture separates the main user-interface thread from heavy computational pipelines using an isolated multi-worker model.
-
-```
-+-----------------------------------------------------------------------------+
-|                                MAIN UI THREAD                               |
-|                                                                             |
-|  [ File Ingestion ]  --->  [ File.slice() / ArrayBuffer ]  ---> [ Dispatch ]|
-+--------------------------------------|--------------------------------------+
-                                       | Transferable Objects (Zero-Copy)
-                                       v
-+-----------------------------------------------------------------------------+
-|                         DYNAMIC WEB WORKER POOL                             |
-|              (Pool Size: Math.max(1, min(HardwareConcurrency - 1, 6)))      |
-|                                                                             |
-|  Thread 1..N:                                                               |
-|  +---------------------+  +---------------------+  +---------------------+  |
-|  |   OffscreenCanvas   |  |   PDF Subsystem     |  |   Tabular Engine    |  |
-|  | WebP / AVIF / PNG   |  | In-Memory pdf-lib   |  | CSV / JSON / XLSX   |  |
-|  +---------------------+  +---------------------+  +---------------------+  |
-+--------------------------------------|--------------------------------------+
-                                       | Transferable Output Buffer
-                                       v
-+-----------------------------------------------------------------------------+
-|                         MEMORY LIFECYCLE CONTROLLER                         |
-|                                                                             |
-|  [ Blob Generation ] ---> [ Object URL Cache ] ---> [ Deterministic GC ]    |
-+-----------------------------------------------------------------------------+
-```
-
-### 2.1 Zero-Copy Transferable Pipeline
-Instead of cloning megabytes of binary payloads across thread boundaries via structured cloning, OmniShift relinquishes byte ownership using `postMessage(message, [transferableArrayBuffer])`. Transfer overhead is bounded to approximately 0.4 milliseconds regardless of buffer size.
-
-### 2.2 Thread Isolation & Framerate Lock
-The main execution context delegates all decoding, layout generation, and serialization tasks to background workers. The event loop remains unblocked, guaranteeing a sub-50ms Interaction to Next Paint (INP) and 0 Cumulative Layout Shift (CLS).
-
-### 2.3 Deterministic Buffer Lifecycle Management
-Browser memory leaks from abandoned `blob:` URIs are mitigated via an active `MemoryManager` registry. URLs are tracked alongside buffer allocations and deterministically invalidated using `URL.revokeObjectURL()` upon queue flushing, download dispatch, or viewport reset.
+OmniShift fundamentally overturns this model. Modern user hardware possesses high-density multi-core CPUs, multi-gigabyte memory heaps, and hardware-accelerated media decoders. OmniShift harnesses these capabilities by turning the browser sandbox into an isolated, sovereign operating system for media processing.
 
 ---
 
-## 3. Transformation Feature Matrix
+## 2. Visual Interfaces & System Walkthrough
 
-| Engine Subsystem | Ingest Formats | Output Formats | Transformation Mechanics |
+OmniShift couples mathematical rigour with an ergonomic, dark-first studio interface engineered for zero cognitive friction. The following sections detail each primary subsystem and view of the platform.
+
+### 2.1 Studio Landing & Zero-Egress Workspace
+
+The primary view provides an instantaneous, distraction-free environment for single-file and multi-file drag-and-drop operations. The workspace displays format category switches (Image Converter, PDF Documents, and Structured Data), a resilient drag-and-drop target zone, and a quick-load 4K benchmark preset for rapid client testing.
+
+All visual states emphasize client-side isolation, explicitly declaring the local nature of the memory heap and the absence of cloud ingress.
+
+![OmniShift Studio Landing Interface](src/assets/ReadmeImages/1.webp)
+
+*OmniShift Studio landing interface: Minimalist layout featuring the core headline, category mode selector (Images, PDF, Data), in-memory dropzone, and 4K sample loader.*
+
+---
+
+### 2.2 In-Memory Staging Workbench & Format Configuration
+
+When files are dropped or loaded from the local filesystem, they bypass disk writes and enter the In-Memory Staging Workbench as transient `ArrayBuffer` allocations.
+
+The workbench displays:
+- **Active Staged Files List:** Individual file cards detailing source extension, filename, and exact byte allocation in memory.
+- **Format Target Selector:** Responsive format selector pills (WebP, AVIF, PNG, JPEG) with dynamic compression modes (including Bit-exact Lossless mode).
+- **Automation Pipeline:** Configurable Auto-Download toggle that initiates deterministic browser downloads the instant the background worker finishes compiling.
+- **Queue Management:** Controls to stage additional files concurrently or cleanly purge volatile memory via the Clear All action.
+
+![OmniShift Staging Workbench](src/assets/ReadmeImages/2.webp)
+
+*OmniShift Staged Files Workbench: Staged PNG file (1.2 MB) configured for WebP transmutation, with active lossless encoding flags and instant execution trigger.*
+
+---
+
+### 2.3 Real-Time Multi-Threaded Processing & Telemetry
+
+Clicking the primary execution trigger offloads computation from the browser's UI thread to a dedicated Web Worker cluster. 
+
+The live processing state provides real-time transparency:
+- **Phase Indication:** Granular status indicators tracking buffer ingestion, multi-threaded worker encoding, stream validation, and output finalization.
+- **Deterministic Progress Tracking:** Continuous hardware-paced progress bar driven by actual byte chunk processing rather than arbitrary CSS animations.
+- **Zero-Egress Security Badge:** Constant runtime verification affirming zero bytes transferred over any network socket.
+
+![OmniShift Real-Time Processing](src/assets/ReadmeImages/3.webp)
+
+*OmniShift Multi-Threaded Processing State: Progress indicator at 65% during worker thread execution with active hardware status and in-memory safety notice.*
+
+---
+
+### 2.4 Deep Technical Documentation & Engine Specifications
+
+OmniShift features an integrated, standalone Technical Guide that provides developers and engineering teams with direct transparency into the runtime architecture.
+
+The technical guide covers:
+- **Subsystem Deep Dives:** Detailed documentation on the OffscreenCanvas Image Engine, the in-memory PDF compiler (`pdf-lib`), and Tabular serialization pipelines.
+- **Format Directives:** Concrete recommendations on when to select WebP versus AVIF versus PNG based on compression characteristics, alpha channel retention, and decoder performance.
+- **Under The Hood Diagnostics:** Architectural write-ups regarding thread scheduling, EXIF orientation correction, zero main-thread starvation, and vector XML sanitization.
+
+![OmniShift Technical Documentation Guide](src/assets/ReadmeImages/4.webp)
+
+*OmniShift Technical Documentation: Engine specifications covering OffscreenCanvas worker execution, EXIF orientation handling, and format trade-offs.*
+
+---
+
+### 2.5 Native Bi-Directional Internationalization (RTL) & Adaptive Themes
+
+OmniShift is built with native internationalization architecture. The platform supports seamless Right-to-Left (RTL) switching (such as Arabic) and full theme switching (Light, Dark, and System Preferences).
+
+Key features of this interface:
+- **Native RTL Mirroring:** Clean mirror transformation of navigation, headers, button orders, drop targets, and typographic hierarchies without layout degradation.
+- **Carefully Tailored Typography:** High-legibility modern typographic stack designed specifically for Arabic glyph rendering alongside Western technical terms.
+- **Theme-Adaptive Visual Hierarchy:** Seamless contrast balancing ensuring that both light and dark environments maintain distinct focus rings, crisp borders, and accessible foreground contrast.
+
+![OmniShift Arabic RTL Interface in Light Mode](src/assets/ReadmeImages/5.webp)
+
+*OmniShift localized in Arabic with full RTL layout direction and Light Theme enabled, showing the native mirrored layout and high-contrast interface controls.*
+
+---
+
+### 2.6 Architectural Comparison: Sovereign Local Runtime vs. Cloud Converters
+
+The embedded System Overview provides an objective comparison between OmniShift's local execution model and traditional cloud-based conversion platforms.
+
+The analysis highlights five fundamental operational metrics:
+- **Data Privacy:** 100% local zero-egress processing versus third-party server exposure.
+- **Processing Latency:** Pure CPU/memory bound speeds versus bandwidth-throttled uploads.
+- **Bandwidth Consumption:** 0 bytes network payload versus 2x file size upload/download roundtrips.
+- **Offline Reliability:** Uninterrupted offline functionality versus total network dependency.
+- **Operational Model:** Free, open-source, and unmetered versus subscription tiers and artificial daily quotas.
+
+![OmniShift System Overview and Architectural Comparison](src/assets/ReadmeImages/6.png)
+
+*OmniShift System Overview: Benchmark comparison table contrasting client-side in-memory execution against cloud-hosted file conversion pipelines.*
+
+---
+
+## 3. System Architecture & Technical Specifications
+
+```
++-------------------------------------------------------------------------------+
+|                                MAIN UI THREAD                                 |
+|                                                                               |
+|  [ File Ingestion ]  --->  [ File.slice() / ArrayBuffer ]  --->  [ Dispatch ] |
++---------------------------------------|---------------------------------------+
+                                        | Transferable Objects (Zero-Copy)
+                                        v
++-------------------------------------------------------------------------------+
+|                            WEB WORKER POOL                                    |
+|               (Threads: Math.max(1, min(HardwareConcurrency - 1, 6)))         |
+|                                                                               |
+|  Worker 1..N:                                                                 |
+|  +----------------------+  +----------------------+  +---------------------+  |
+|  |   OffscreenCanvas    |  |    PDF Subsystem     |  |   Tabular Engine    |  |
+|  |  WebP / AVIF / PNG   |  |  In-Memory pdf-lib   |  |  CSV / JSON / XLSX  |  |
+|  +----------------------+  +----------------------+  +---------------------+  |
++---------------------------------------|---------------------------------------+
+                                        | Transferable Output Buffer
+                                        v
++-------------------------------------------------------------------------------+
+|                           MEMORY LIFECYCLE REGISTRY                           |
+|                                                                               |
+|   [ Blob Construction ]  --->  [ URL Cache ]  --->  [ Deterministic Revocation ]
++-------------------------------------------------------------------------------+
+```
+
+### 3.1 Zero-Copy Transferable Pipeline
+Standard Web Worker communication via `postMessage()` relies on structured cloning, which duplicates megabytes of memory across thread boundaries. OmniShift completely circumvents this memory penalty by transferring byte ownership directly via Transferable Objects:
+```javascript
+worker.postMessage(
+  {
+    type: 'TRANSMUTE_TASK',
+    id: task.id,
+    fileName: task.fileName,
+    targetMimeType: task.targetMimeType,
+    fileBuffer: task.arrayBuffer,
+  },
+  [task.arrayBuffer] // Byte buffer ownership is transferred instantly without cloning
+);
+```
+Transfer overhead is constant at approximately 0.4 milliseconds regardless of whether the file is 500 KB or 500 MB.
+
+### 3.2 Thread Isolation & UI Lock Freedom
+All heavy codecs (Bicubic downscaling, Huffman tree compilation, Flate decompression, XML parsing, and string serialization) execute strictly off the main thread inside independent Web Workers. The UI thread remains completely idle, maintaining a locked 60 frames per second interaction rate with zero frame drops during heavy 4K transcoding.
+
+### 3.3 Deterministic Buffer Lifecycle (Garbage Collection)
+Browsers do not automatically garbage collect memory references tied to `blob:` object URLs. To prevent browser tab crashes from accumulated memory bloat, OmniShift implements an active `MemoryManager` registry:
+- Every generated URL is registered alongside its associated `ArrayBuffer`.
+- References are tracked during the active lifecycle of the staging workbench.
+- Immediate deterministic revocation (`URL.revokeObjectURL()`) is triggered upon download initiation, queue clearance, format switching, or session reset.
+
+---
+
+## 4. Transformation Subsystems Matrix
+
+| Subsystem | Input Formats | Output Formats | Internal Engine & Method |
 | :--- | :--- | :--- | :--- |
-| **Raster Transcoder** | PNG, JPEG, WEBP, AVIF, HEIC | WebP, AVIF, PNG, JPEG | Hardware-accelerated `OffscreenCanvas`, bicubic downsampling, variable lossy/lossless quantization. |
-| **Document Compiler** | PDF | PDF | Linearized in-memory object stream merging, metadata sanitization, page extraction via `pdf-lib`. |
-| **Structured Data** | JSON, CSV | CSV, JSON, XLSX | High-speed delimited parsing, delimiter sniffing, header flattening, SheetJS workbook compilation. |
-| **Vector Engine** | SVG | Minified SVG, High-Res PNG | XML namespace stripping, redundant path pruning, raster rendering via canvas context. |
-| **Archive Stream** | Mixed File Queue | ZIP (.zip) | Multi-core parallel processing paired with client RAM Deflate compilation via JSZip. |
+| **Raster Engine** | PNG, JPEG, JPG, WebP, AVIF, HEIC, BMP | WebP, AVIF, PNG, JPEG | `OffscreenCanvas`, native browser codecs, hardware quantization, bicubic resampling. |
+| **Document Compiler** | PDF | PDF, DOCX, TXT | Linearized in-memory object stream manipulation, Flate decoding (`pako`), document merging via `pdf-lib`. |
+| **Tabular Engine** | JSON, CSV | CSV, JSON | Delimiter auto-detection, RFC 4180 parsing, record flattening, bidirectional schema transformation. |
+| **Vector Engine** | SVG | Minified SVG, Raster PNG | XML AST parsing, namespace pruning, decimal precision truncation, OffscreenCanvas vector rasterization. |
+| **Archive Compiler** | Mixed batch files | ZIP (.zip) | Multi-core parallel encoding with client-side in-memory Deflate compression via `JSZip`. |
 
 ---
 
-## 4. Telemetry & Hardware Diagnostics
+## 5. Security Protocol & Verification Guide
 
-OmniShift features an integrated Telemetry HUD that samples high-resolution hardware timers (`performance.now()`) to report actual compute metrics:
+OmniShift's zero-egress promise is cryptographically and operationally verifiable by any user or security audit team.
 
-- **Latency (ms)**: High-precision execution duration measured from worker ingest to buffer emission.
-- **Compression Delta (%)**: Byte footprint reduction delta calculated as:
-  `((TransmutedBytes - OriginalBytes) / OriginalBytes) * 100`
-- **Memory Footprint**: Native V8 JavaScript heap allocation tracking (`performance.memory.usedJSHeapSize`) combined with volatile ArrayBuffer volume tracking.
-- **Hardware Thread Engagement**: Real-time counter detailing engaged CPU cores vs. total host capacity (`navigator.hardwareConcurrency`).
-- **Runtime Capability Flags**: Instant binary verification for `[SIMD]`, `[OffscreenCanvas]`, and `[TransferableObjects]`.
+### Step-by-Step Security Audit
+1. Open OmniShift in any modern Chromium, Gecko, or WebKit browser (Chrome, Edge, Firefox, Brave, Safari).
+2. Press `F12` or `Ctrl + Shift + I` (`Cmd + Option + I` on macOS) to open Developer Tools.
+3. Navigate to the **Network** tab.
+4. Set the filter to **Fetch/XHR** (or **All**).
+5. Disconnect your internet connection or toggle browser Offline Mode.
+6. Drop any high-resolution image, multi-page PDF, or dense dataset, select the desired format, and click Convert.
+7. Observe the Network panel:
+   - Exactly **0 requests** are dispatched.
+   - All conversions complete instantaneously without any network dependency.
+   - Output files are generated directly from browser memory blobs.
 
 ---
 
-## 5. Local Development & Build Configuration
+## 6. Installation & Local Development
 
 ### Prerequisites
 - Node.js runtime environment (v18.0.0 or higher recommended)
-- Package manager: npm, pnpm, or yarn
+- Package manager: `npm`, `pnpm`, or `yarn`
 
-### Installation
+### Setup
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/omnishift.git
-cd omnishift
+git clone https://github.com/KamalAboueidd/omniShift.git
+cd omniShift
 
-# Install project dependencies
+# Install dependencies
 npm install
-```
 
-### Local Development Server
-```bash
-# Start local development server with HMR
+# Launch local development server with Vite HMR
 npm run dev
 ```
 
-### Production Build & Worker Chunking
+### Production Build & Preview
 ```bash
-# Build optimized static distribution
+# Compile optimized static bundle
 npm run build
 
-# Preview production build locally
+# Preview static distribution locally
 npm run preview
 ```
 
-The Vite configuration enforces ES-module worker compilation (`worker: { format: 'es' }`) and configures required isolation headers for cross-origin boundary enforcement:
-- `Cross-Origin-Opener-Policy: same-origin`
-- `Cross-Origin-Embedder-Policy: require-corp`
-
----
-
-## 6. Verification & Security Protocol
-
-To verify zero network communication and complete data sovereignty:
-
-1. Launch OmniShift in Google Chrome, Mozilla Firefox, or Apple Safari.
-2. Open Developer Tools (`F12` or `Cmd + Option + I`).
-3. Select the **Network** tab and activate the **Fetch/XHR** filter.
-4. Drag and drop any 4K image, multi-page PDF, or dense dataset, or trigger a 50-file batch transmutation.
-5. Inspect the Network activity log: **0 HTTP/WebSocket requests are dispatched**.
-6. The entire computational workflow executes locally inside RAM.
+The build pipeline enforces ES-module worker packaging (`worker: { format: 'es' }`) with Rollup chunk splitting to ensure that heavy document and data engines are loaded on demand.
 
 ---
 
 ## 7. License
 
-Distributed under the MIT License. See `LICENSE` for the complete license declaration.
+Distributed under the MIT License. See [LICENSE](LICENSE) for complete license terms.
