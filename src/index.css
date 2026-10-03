@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+:root {
+  --bg-canvas: #0A0A0A;
+  --bg-surface-1: #121212;
+  --bg-surface-2: #171717;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --text-primary: #EDEDED;
+  --text-muted: #888888;
+  --text-subtle: rgba(255, 255, 255, 0.4);
+  --accent-orange: #FF5A1F;
+}
+
+html.light {
+  --bg-canvas: #FAFAFA;
+  --bg-surface-1: #FFFFFF;
+  --bg-surface-2: #F4F4F5;
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-subtle: rgba(0, 0, 0, 0.04);
+  --text-primary: #09090B;
+  --text-muted: #71717A;
+  --text-subtle: rgba(0, 0, 0, 0.45);
+  --accent-orange: #FF5A1F;
+}
+
+@theme {
+  --color-surface-bg: var(--bg-canvas);
+  --color-surface-1: var(--bg-surface-1);
+  --color-surface-2: var(--bg-surface-2);
+  --color-accent-orange: var(--accent-orange);
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+@layer base {
+  body {
+    font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    letter-spacing: -0.025em;
+    overflow-x: hidden;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Hairline borders adapting to theme */
+.border-hairline {
+  border-width: 1px;
+  border-color: var(--border-color);
+}
+
+.border-hairline-subtle {
+  border-color: var(--border-subtle);
+}
+
+/* Tabular numbers for latency & metric counters */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hide scrollbar for clean horizontal swipe on mobile */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

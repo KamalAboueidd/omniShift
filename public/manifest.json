@@ -1,0 +1,19 @@
+{
+  "name": "Transmute — Client-Side Local Compute Platform",
+  "short_name": "Transmute",
+  "description": "Zero bytes uploaded to the cloud — 100% Private, Instant Local Compute in browser Web Workers.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0A0A0A",
+  "theme_color": "#0A0A0A",
+  "categories": ["utilities", "developer-tools", "productivity"],
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
