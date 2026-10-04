@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, memo } from 'react';
+import { useState, useRef, useCallback, memo } from 'react';
 import { formatBytes } from '../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
@@ -11,8 +11,7 @@ export const VisualDiffViewer = memo(function VisualDiffViewer({
   targetFormat = 'WEBP',
   isRecomputing = false,
 }) {
-  const { t, language } = useLanguage();
-  const isArabic = language === 'ar';
+  const { t } = useLanguage();
   
   // Slider position from 0 to 1 (default 0.5 = 50% split)
   const [sliderPos, setSliderPos] = useState(0.5);

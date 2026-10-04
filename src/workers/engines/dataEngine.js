@@ -73,14 +73,22 @@ export function csvToJson(csvText) {
   const headers = parseRow(lines[0]);
   const rows = [];
 
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseRow(lines[i]);
-    const obj = {};
-    headers.forEach((h, idx) => {
-      obj[h || `column_${idx + 1}`] = values[idx] !== undefined ? values[idx] : '';
-    });
-    rows.push(obj);
-  }
+    for (let i = 1; i < lines.length; i++) {
+      const values = parseRow(lines[i]);
+      const obj = {};
+      headers.forEach((h, idx) => {
+        const raw = values[idx] !== undefined ? values[idx] : '';
+        let parsed = raw;
+        if (raw.toLowerCase() === 'true') parsed = true;
+        else if (raw.toLowerCase() === 'false') parsed = false;
+        else if (raw.toLowerCase() === 'null') parsed = null;
+        else if (raw !== '' && !isNaN(Number(raw)) && !raw.includes(' ') && !/^0[0-9]+/.test(raw)) {
+          parsed = Number(raw);
+        }
+        obj[h || `column_${idx + 1}`] = parsed;
+      });
+      rows.push(obj);
+    }
 
   return rows;
 }

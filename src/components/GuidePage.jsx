@@ -16,7 +16,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { cn } from '../lib/utils';
 
 export const GuidePage = memo(function GuidePage({ onBackToApp }) {
-  const { lang, isRTL, t } = useLanguage();
+  const { lang, t } = useLanguage();
   const [activeDoc, setActiveDoc] = useState('overview');
 
   const docsNav = [

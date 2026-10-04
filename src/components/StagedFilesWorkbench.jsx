@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { memo, useMemo, useState, useEffect } from 'react';
 import { 
   FileImage, 
   FileText, 
@@ -18,6 +18,7 @@ import {
   Zap,
   Check,
   RefreshCw,
+  Presentation,
 } from 'lucide-react';
 import { formatBytes, formatSizeDelta, triggerDownload } from '../lib/utils';
 import { ConversionControls } from './ConversionControls';
@@ -95,8 +96,10 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
     if (targetMimeType.includes('jpeg')) return 'JPEG';
     if (targetMimeType.includes('avif')) return 'AVIF';
     if (targetMimeType.includes('word') || targetMimeType.includes('docx')) return 'DOCX';
+    if (targetMimeType.includes('presentation') || targetMimeType.includes('powerpoint') || targetMimeType.includes('presentationml')) return 'PPTX';
     if (targetMimeType.includes('plain') || targetMimeType.includes('txt')) return 'TXT';
     if (targetMimeType.includes('pdf')) return 'PDF';
+    if (targetMimeType.includes('zip')) return 'ZIP';
     if (targetMimeType.includes('json')) return 'JSON';
     if (targetMimeType.includes('csv')) return 'CSV';
     if (targetMimeType.includes('svg')) return 'SVG';
@@ -104,6 +107,9 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
   }, [targetMimeType]);
 
   const convertAnotherLabel = useMemo(() => {
+    if (activeFileType === 'presentation') {
+      return t('convertAnotherPresentation') || 'Convert another presentation';
+    }
     if (activeFileType === 'image' || isFirstImage) {
       return t('convertAnotherImage');
     }
@@ -121,6 +127,16 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
 
   const getFileIcon = (file, isSuccess = false) => {
     const name = (file.name || file.fileName || '').toLowerCase();
+    if (name.endsWith('.pptx') || name.endsWith('.ppt') || file.type?.includes('presentation') || file.type?.includes('powerpoint')) {
+      return (
+        <div className="relative">
+          <Presentation className="h-5 w-5 text-[#FF5A1F] shrink-0" />
+          {isSuccess && (
+            <CheckCircle2 className="h-3 w-3 text-emerald-500 absolute -bottom-1 -right-1 bg-[var(--bg-surface-1)] rounded-full" />
+          )}
+        </div>
+      );
+    }
     if (name.endsWith('.pdf') || file.type === 'application/pdf') {
       return (
         <div className="relative">
@@ -190,7 +206,7 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
           <span 
             className={`flex h-2 w-2 rounded-full ${
               isCompleted 
-                ? 'bg-emerald-500' 
+                ? 'bg-[#FF5A1F]' 
                 : isProcessing 
                 ? 'bg-[#FF5A1F] animate-pulse' 
                 : 'bg-[#FF5A1F]'
@@ -224,7 +240,7 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
             <button
               type="button"
               onClick={onAddMoreFiles}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-2)] px-2.5 py-1 text-xs font-medium text-[var(--text-primary)] hover:border-[#FF5A1F] hover:text-[#FF5A1F] transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-2)] px-2.5 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-3)] hover:text-[#FF5A1F] transition-colors cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>{t('addMore')}</span>
@@ -264,9 +280,8 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
         />
       )}
 
-      {/* File Cards Grid (Shown during Staged/Converting, or for Multi-file/Non-image Completed) */}
-      {(!isCompleted || files.length > 1 || !isFirstImage) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
+      {/* File Cards Grid (Always visible with direct download action per file) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
           {files.map((item, idx) => {
             const itemOriginalBytes = item.originalBytes || item.size || 0;
             const itemTransmutedBytes = item.blob?.size || item.telemetry?.transmutedBytes;
@@ -305,8 +320,8 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
                   </div>
                 </div>
 
-                {/* Card Action Button */}
-                {isCompleted ? (
+                {/* Card Action Button: Show download only in multi-file batch (single file uses primary CTA below) */}
+                {isCompleted && files.length > 1 ? (
                   <button
                     type="button"
                     onClick={() => onDownloadIndividual && onDownloadIndividual(item.id)}
@@ -316,7 +331,7 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
                     <Download className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">{t('download')}</span>
                   </button>
-                ) : !isProcessing ? (
+                ) : !isCompleted && !isProcessing ? (
                   <button
                     type="button"
                     onClick={() => onRemoveFile && onRemoveFile(idx)}
@@ -330,7 +345,6 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
             );
           })}
         </div>
-      )}
 
       {/* Controls & Action Box */}
       <div className="rounded-xl border border-[var(--border-color)] bg-[var(--bg-surface-1)] p-4 sm:p-5 shadow-xs">
@@ -343,6 +357,7 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
             onTriggerPdfMerge={onTriggerPdfMerge}
             disabled={isProcessing}
             pdfCount={pdfCount}
+            files={files}
           />
         )}
 

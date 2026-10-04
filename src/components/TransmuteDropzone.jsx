@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UploadCloud, FileText, FileSpreadsheet, Cpu, CheckCircle2 } from 'lucide-react';
+import { UploadCloud, FileText, FileSpreadsheet, Cpu, CheckCircle2, Presentation } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -27,19 +27,16 @@ export const TransmuteDropzone = memo(function TransmuteDropzone({
 
   const handleDragOver = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     if (!isDragOver) setIsDragOver(true);
   };
 
   const handleDragLeave = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     setIsDragOver(false);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     setIsDragOver(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
@@ -92,6 +89,13 @@ export const TransmuteDropzone = memo(function TransmuteDropzone({
       extensions: ['JSON', 'CSV'],
       subtitle: t('dropSubtitleData'),
       Icon: FileSpreadsheet,
+    },
+    presentation: {
+      headline: t('dropHeadlinePresentation') || 'Drop PowerPoint presentations to convert, or',
+      accept: '.pptx,.ppt,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint',
+      extensions: ['PPTX', 'PPT'],
+      subtitle: t('dropSubtitlePresentation') || 'Client-side Presentation Parser • Zero cloud egress',
+      Icon: Presentation,
     },
   };
 

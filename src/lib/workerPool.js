@@ -120,8 +120,23 @@ class WorkerPool {
     const idleSlot = this.workers.find((w) => !w.isBusy);
     if (!idleSlot) return; // All cores saturated
 
-    const task = this.taskQueue.shift();
+    // High-Resolution & Heavy task throttling: Process heavy tasks sequentially to prevent browser tab OOM
+    const taskIndex = this.taskQueue.findIndex((t) => {
+      const isTaskHeavy = (t.file && t.file.size > 15 * 1024 * 1024) || t.type === 'TRANSMUTE_PDF_MERGE';
+      if (isTaskHeavy && this.heavyTaskActive) {
+        return false;
+      }
+      return true;
+    });
+
+    if (taskIndex === -1) return;
+    const task = this.taskQueue.splice(taskIndex, 1)[0];
     if (!task) return;
+
+    const isThisTaskHeavy = (task.file && task.file.size > 15 * 1024 * 1024) || task.type === 'TRANSMUTE_PDF_MERGE';
+    if (isThisTaskHeavy) {
+      this.heavyTaskActive = true;
+    }
 
     idleSlot.isBusy = true;
     idleSlot.currentTaskId = task.id;
@@ -133,6 +148,9 @@ class WorkerPool {
 
     const cleanup = () => {
       if (timeoutId) clearTimeout(timeoutId);
+      if (isThisTaskHeavy) {
+        this.heavyTaskActive = false;
+      }
       idleSlot.isBusy = false;
       idleSlot.currentTaskId = null;
       this.activeTaskCount -= 1;
@@ -140,11 +158,12 @@ class WorkerPool {
       this._processNext();
     };
 
-    // 6-second timeout watchdog: If worker freezes or drops messages, fail over to main-thread fallback
+    // Adaptive timeout watchdog: 10s for standard tasks, 25s for heavy multi-page or 24MP+ images
+    const timeoutLimit = isThisTaskHeavy ? 25000 : 10000;
     timeoutId = setTimeout(async () => {
       if (isSettled) return;
       isSettled = true;
-      console.warn(`Worker task [${task.id}] timed out. Failing over to main-thread fallback.`);
+      console.warn(`Worker task [${task.id}] timed out (${timeoutLimit}ms). Failing over to main-thread fallback.`);
       this._replaceWorkerSlot(idleSlot);
       cleanup();
 
@@ -156,7 +175,7 @@ class WorkerPool {
       } catch (fbErr) {
         task.reject(fbErr);
       }
-    }, 6000);
+    }, timeoutLimit);
 
     const messageHandler = (e) => {
       const msg = e.data;

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { TransmuteDropzone } from './components/TransmuteDropzone';
@@ -13,7 +13,7 @@ import { useLanguage } from './context/LanguageContext';
 import { memoryManager } from './lib/memoryManager';
 import { triggerDownload } from './lib/utils';
 
-const ACCEPT_ATTRIBUTE = '.png,.jpg,.jpeg,.webp,.avif,.heic,.pdf,.svg,.json,.csv,image/png,image/jpeg,image/webp,image/avif,application/pdf,image/svg+xml,application/json,text/csv';
+const ACCEPT_ATTRIBUTE = '.png,.jpg,.jpeg,.webp,.avif,.heic,.pdf,.svg,.json,.csv,.pptx,.ppt,image/png,image/jpeg,image/webp,image/avif,application/pdf,image/svg+xml,application/json,text/csv,application/vnd.openxmlformats-officedocument.presentationml.presentation';
 
 export const App = () => {
   const { t } = useLanguage();
@@ -49,7 +49,6 @@ export const App = () => {
     clearQueue,
     downloadIndividual,
     mergePdfFiles,
-    retransmuteItem,
   } = useBatchTransmute();
 
   const handleToggleAutoDownload = useCallback((enabled) => {
@@ -70,6 +69,14 @@ export const App = () => {
     if (rawFiles.length > 0) {
       const first = rawFiles[0];
       const lower = first.name?.toLowerCase() || '';
+      if (
+        lower.endsWith('.pptx') ||
+        lower.endsWith('.ppt') ||
+        first.type?.includes('presentation') ||
+        first.type?.includes('powerpoint')
+      ) {
+        return 'presentation';
+      }
       if (lower.endsWith('.json') || lower.endsWith('.csv') || first.type?.includes('json') || first.type?.includes('csv')) {
         return 'data';
       }
@@ -99,20 +106,43 @@ export const App = () => {
       // Adjust default target MIME and active mode automatically based on file type
       const first = newFiles[0];
       const lower = first.name?.toLowerCase() || '';
-      let nextMime = targetMimeType;
+      let nextMime;
 
-      if (lower.endsWith('.json')) {
+      if (
+        lower.endsWith('.pptx') ||
+        lower.endsWith('.ppt') ||
+        first.type?.includes('presentation') ||
+        first.type?.includes('powerpoint')
+      ) {
+        nextMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        setMode('presentation');
+      } else if (lower.endsWith('.json')) {
         nextMime = 'text/csv';
         setMode('data');
       } else if (lower.endsWith('.csv')) {
         nextMime = 'application/json';
         setMode('data');
       } else if (lower.endsWith('.svg')) {
-        nextMime = 'image/svg+xml';
-        setMode('image');
+        nextMime = 'image/png';
+        setMode('svg');
       } else if (lower.endsWith('.pdf') || first.type === 'application/pdf') {
-        nextMime = 'application/pdf';
+        nextMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
         setMode('pdf');
+      } else if (lower.endsWith('.webp')) {
+        nextMime = 'image/png';
+        setMode('image');
+      } else if (lower.endsWith('.png')) {
+        nextMime = 'image/webp';
+        setMode('image');
+      } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+        nextMime = 'image/webp';
+        setMode('image');
+      } else if (lower.endsWith('.bmp')) {
+        nextMime = 'image/webp';
+        setMode('image');
+      } else if (lower.endsWith('.ico')) {
+        nextMime = 'image/png';
+        setMode('image');
       } else {
         nextMime = 'image/webp';
         setMode('image');
@@ -150,7 +180,7 @@ export const App = () => {
         clearTimeout(t2);
       };
     },
-    [targetMimeType]
+    []
   );
 
   const handleRemoveStagedFile = useCallback((indexToRemove) => {
@@ -416,6 +446,20 @@ export const App = () => {
                       }`}
                     >
                       {t('modePdf')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('presentation');
+                        setTargetMimeType('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+                      }}
+                      className={`px-2.5 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                        mode === 'presentation'
+                          ? 'bg-[#FF5A1F] text-black shadow-2xs font-bold'
+                          : 'text-[var(--text-muted)] hover:text-[#FF5A1F] bg-transparent'
+                      }`}
+                    >
+                      {t('modePresentation') || 'PowerPoint (.pptx)'}
                     </button>
                     <button
                       type="button"

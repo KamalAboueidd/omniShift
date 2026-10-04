@@ -1,11 +1,13 @@
 import { executeDataTransmute } from './engines/dataEngine';
 import { executeSvgTransmute } from './engines/svgEngine';
-import { optimizePdf, mergePdfs, executePdfTransmute } from './engines/pdfEngine';
+import { mergePdfs, executePdfTransmute } from './engines/pdfEngine';
+import { executeImageTransmute } from './engines/imageEngine';
+import { executePresentationTransmute } from './engines/presentationEngine';
 
 /**
  * Transmute Universal Web Worker
  * Integrates image transcoding, vector SVG optimization, PDF manipulation,
- * and structured data (JSON/CSV/XLSX) in pure client memory.
+ * structured data (JSON/CSV/XLSX), and presentation (PPTX) processing in pure client memory.
  */
 
 self.onmessage = async (event) => {
@@ -55,6 +57,12 @@ self.onmessage = async (event) => {
     const originalBytes = fileBuffer ? fileBuffer.byteLength : 0;
     const lowerName = (fileName || '').toLowerCase();
 
+    const isPresentation =
+      sourceMimeType.includes('presentation') ||
+      sourceMimeType.includes('powerpoint') ||
+      lowerName.endsWith('.pptx') ||
+      lowerName.endsWith('.ppt');
+
     const isData =
       sourceMimeType.includes('json') ||
       sourceMimeType.includes('csv') ||
@@ -73,7 +81,14 @@ self.onmessage = async (event) => {
 
     postProgress('BUFFER_INGEST_CLASSIFIED');
 
-    if (isData) {
+    if (isPresentation) {
+      // Presentation Pipeline: PPTX -> DOCX / PDF / ZIP / TXT
+      postProgress('UNPACKING_PRESENTATION_ARCHIVE');
+      const presResult = await executePresentationTransmute(fileBuffer, targetMimeType, fileName);
+      outputBuffer = presResult.outputBuffer;
+      outputMimeType = presResult.outputMimeType;
+      extraMeta = presResult.extraMeta;
+    } else if (isData) {
       // Structured Data Pipeline: JSON <-> CSV <-> XLSX
       postProgress('PROCESSING_STRUCTURED_DATA_TREE');
       const sourceFormat = lowerName.endsWith('.json') || sourceMimeType.includes('json') ? 'JSON' : 'CSV';
@@ -105,60 +120,12 @@ self.onmessage = async (event) => {
       outputMimeType = pdfResult.outputMimeType;
       extraMeta = pdfResult.extraMeta;
     } else {
-      // Standard Raster Image Pipeline via OffscreenCanvas
+      // Standard / Extended Raster Image Pipeline via imageEngine
       postProgress('DECODING_IMAGE_BITMAP');
-      let imageBitmap;
-      try {
-        const sourceBlob = new Blob([fileBuffer], { type: sourceMimeType || 'image/jpeg' });
-        imageBitmap = await createImageBitmap(sourceBlob);
-      } catch (decodeErr) {
-        // Fallback: untyped blob lets browser native decoder sniff magic bytes (JFIF, JPEG, PNG, WebP)
-        try {
-          const untypedBlob = new Blob([fileBuffer]);
-          imageBitmap = await createImageBitmap(untypedBlob);
-        } catch (finalErr) {
-          throw new Error(`Failed to decode image buffer: ${finalErr.message}`);
-        }
-      }
-
-      const width = imageBitmap.width;
-      const height = imageBitmap.height;
-
-      postProgress(`ALLOCATING_OFFSCREEN_CANVAS_${width}x${height}`);
-      const offscreen = new OffscreenCanvas(width, height);
-      const ctx = offscreen.getContext('2d', {
-        alpha: targetMimeType !== 'image/jpeg',
-        willReadFrequently: false,
-      });
-
-      if (!ctx) {
-        throw new Error('Failed to acquire 2D rendering context on OffscreenCanvas.');
-      }
-
-      postProgress('RASTERIZING_IN_MEMORY_PIXELS');
-      ctx.drawImage(imageBitmap, 0, 0);
-      imageBitmap.close();
-
-      postProgress(`TRANSCODING_STREAM_TO_${(targetMimeType || 'image/webp').toUpperCase()}`);
-      let outputBlob;
-
-      try {
-        outputBlob = await offscreen.convertToBlob({
-          type: targetMimeType || 'image/webp',
-          quality: targetMimeType === 'image/png' ? undefined : quality,
-        });
-      } catch {
-        const fallbackMime = targetMimeType === 'image/png' ? 'image/jpeg' : 'image/webp';
-        outputBlob = await offscreen.convertToBlob({
-          type: fallbackMime,
-          quality,
-        });
-      }
-
-      postProgress('CONVERTING_TO_TRANSFERABLE_ARRAYBUFFER');
-      outputBuffer = await outputBlob.arrayBuffer();
-      outputMimeType = outputBlob.type || targetMimeType || 'image/webp';
-      extraMeta = { width, height };
+      const imageResult = await executeImageTransmute(fileBuffer, sourceMimeType, targetMimeType, quality);
+      outputBuffer = imageResult.outputBuffer;
+      outputMimeType = imageResult.outputMimeType;
+      extraMeta = imageResult.extraMeta;
     }
 
     const transmutedBytes = outputBuffer.byteLength;

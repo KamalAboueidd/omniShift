@@ -18,12 +18,15 @@ export const translations = {
     // Workspace Mode Tabs
     modeImages: 'Image Converter',
     modePdf: 'PDF Documents',
+    modePresentation: 'PowerPoint (.pptx)',
     modeData: 'Data (CSV / JSON)',
 
     // Dropzone
     dropHeadlineImage: 'Drop images to convert or compress, or',
     dropHeadlinePdf: 'Drop PDF documents to merge or transcode, or',
     dropHeadlineData: 'Drop JSON or CSV datasets to convert, or',
+    dropHeadlinePresentation: 'Drop PowerPoint presentations to convert, or',
+    dropSubtitlePresentation: 'Client-side Presentation Parser • Zero cloud egress',
     browseFiles: 'browse files',
     dropSubtitleImage: 'In-Memory Canvas & WASM • Zero cloud egress',
     dropSubtitlePdf: 'Client-side In-Memory PDF Processing • 100% Private',
@@ -59,6 +62,7 @@ export const translations = {
     convertAnotherPdf: 'Convert another PDF',
     convertAnotherData: 'Convert another dataset',
     convertAnotherSvg: 'Convert another SVG',
+    convertAnotherPresentation: 'Convert another presentation',
     resetSession: 'Reset',
     conversionComplete: 'Conversion Complete',
     completed: 'Completed',
@@ -87,6 +91,7 @@ export const translations = {
     qualitySliderLabel: 'Compression quality slider',
     tabularSerialization: 'Tabular serialization',
     vectorMinification: 'Vector DOM minification',
+    presentationSlides: 'Slide layout serialization',
     bitExactLossless: 'Bit-exact lossless mode',
     pdfMergeQueued: '{count} PDF files queued for merge',
     mergeDocuments: 'Merge Documents',
@@ -105,7 +110,6 @@ export const translations = {
 
     // Batch Queue HUD
     batchProcessingHub: 'Batch Processing Hub',
-    downloadAllZip: 'Download All (.ZIP)',
     queuedState: 'QUEUED',
     readyBadge: 'READY',
     failedBadge: 'FAILED',
@@ -156,12 +160,15 @@ export const translations = {
     // Workspace Mode Tabs
     modeImages: 'محول الصور',
     modePdf: 'مستندات PDF',
+    modePresentation: 'عروض PowerPoint (.pptx)',
     modeData: 'البيانات (CSV / JSON)',
 
     // Dropzone
     dropHeadlineImage: 'أفلت الصور للتحويل أو الضغط، أو',
     dropHeadlinePdf: 'أفلت ملفات PDF للدمج أو التحويل، أو',
     dropHeadlineData: 'أفلت مجموعات بيانات JSON أو CSV، أو',
+    dropHeadlinePresentation: 'أفلت عروض PowerPoint التقديمية للتحويل، أو',
+    dropSubtitlePresentation: 'معالجة العروض التقديمية داخل المتصفح • بدون خوادم',
     browseFiles: 'تصفح ملفاتك',
     dropSubtitleImage: 'معالجة عبر Canvas و WASM في الذاكرة • بدون رفع سحابي',
     dropSubtitlePdf: 'معالجة مستندات PDF في الذاكرة المحلية • خصوصية 100%',
@@ -197,6 +204,7 @@ export const translations = {
     convertAnotherPdf: 'تحويل مستند PDF آخر',
     convertAnotherData: 'تحويل ملف بيانات آخر',
     convertAnotherSvg: 'تحويل ملف SVG آخر',
+    convertAnotherPresentation: 'تحويل عرض تقديمي آخر',
     resetSession: 'إعادة ضبط',
     conversionComplete: 'اكتمل التحويل',
     completed: 'مكتمل',
@@ -225,6 +233,7 @@ export const translations = {
     qualitySliderLabel: 'شريط ضبط جودة الضغط',
     tabularSerialization: 'تسلسل الجداول والبيانات',
     vectorMinification: 'تصغير ملفات الـ SVG المتجهية',
+    presentationSlides: 'معالجة وتنسيق شرائح العرض',
     bitExactLossless: 'وضع الحفظ التام بدون فقدان جودة (Lossless)',
     pdfMergeQueued: '{count} ملفات PDF بانتظار الدمج',
     mergeDocuments: 'دمج المستندات الآن',
@@ -243,7 +252,6 @@ export const translations = {
 
     // Batch Queue HUD
     batchProcessingHub: 'مركز معالجة الدفعات المتوازية',
-    downloadAllZip: 'تنزيل الكل كملف (ZIP)',
     queuedState: 'قيد الانتظار',
     readyBadge: 'جاهز',
     failedBadge: 'فشل',

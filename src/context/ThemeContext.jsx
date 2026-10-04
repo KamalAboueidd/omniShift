@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState } from 'react';
 
 const ThemeContext = createContext({
@@ -47,7 +48,7 @@ export function ThemeProvider({ children }) {
 
     if (theme === 'system') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      const listener = (e) => {
+      const listener = () => {
         applyTheme('system');
       };
       mediaQuery.addEventListener('change', listener);

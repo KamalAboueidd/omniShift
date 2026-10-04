@@ -152,7 +152,7 @@ export function useBatchTransmute(options = {}) {
     }
   }, []);
 
-  const enqueueFiles = useCallback(async (files, targetMimeType = 'image/webp', quality = 1.0) => {
+  const enqueueFiles = useCallback(async (files, targetMimeType = 'image/webp', quality = 0.82) => {
     if (!files || files.length === 0) return;
 
     setIsProcessing(true);
@@ -193,6 +193,8 @@ export function useBatchTransmute(options = {}) {
       if (lowerName.endsWith('.pdf')) {
         if (targetMime.includes('word') || targetMime.includes('docx')) return 'docx';
         if (targetMime.includes('plain') || targetMime.includes('txt')) return 'txt';
+        if (targetMime.includes('zip')) return 'zip';
+        if (targetMime.includes('png')) return 'png';
         return 'pdf';
       }
       const extMap = {
@@ -200,6 +202,9 @@ export function useBatchTransmute(options = {}) {
         'image/avif': 'avif',
         'image/png': 'png',
         'image/jpeg': 'jpg',
+        'image/bmp': 'bmp',
+        'image/x-icon': 'ico',
+        'image/vnd.microsoft.icon': 'ico',
         'application/pdf': 'pdf',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
         'text/plain': 'txt',
@@ -245,11 +250,13 @@ export function useBatchTransmute(options = {}) {
 
         const formatFromMime = (mime) => {
           if (!mime) return 'RAW';
+          if (mime.includes('word') || mime.includes('docx')) return 'DOCX';
           if (mime.includes('spreadsheet') || mime.includes('xlsx')) return 'XLSX';
           if (mime.includes('csv')) return 'CSV';
           if (mime.includes('json')) return 'JSON';
           if (mime.includes('svg')) return 'SVG';
           if (mime.includes('pdf')) return 'PDF';
+          if (mime.includes('plain') || mime.includes('txt')) return 'TXT';
           return mime.split('/')[1]?.toUpperCase() || 'RAW';
         };
 
@@ -316,6 +323,8 @@ export function useBatchTransmute(options = {}) {
       if (lower.endsWith('.pdf')) {
         if (targetMime.includes('word') || targetMime.includes('docx')) return 'docx';
         if (targetMime.includes('plain') || targetMime.includes('txt')) return 'txt';
+        if (targetMime.includes('zip')) return 'zip';
+        if (targetMime.includes('png')) return 'png';
         return 'pdf';
       }
       const extMap = {
@@ -323,6 +332,9 @@ export function useBatchTransmute(options = {}) {
         'image/avif': 'avif',
         'image/png': 'png',
         'image/jpeg': 'jpg',
+        'image/bmp': 'bmp',
+        'image/x-icon': 'ico',
+        'image/vnd.microsoft.icon': 'ico',
         'application/pdf': 'pdf',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
         'text/plain': 'txt',

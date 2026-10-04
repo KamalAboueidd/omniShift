@@ -55,14 +55,41 @@ export async function localFallbackTransmute(task) {
     };
   }
 
-  // 2. Structured Data (CSV / JSON)
+  // 2. PowerPoint Presentation (.pptx)
   const lowerName = fileName.toLowerCase();
+  const isPresentation =
+    lowerName.endsWith('.pptx') ||
+    lowerName.endsWith('.ppt') ||
+    file?.type?.includes('presentation') ||
+    file?.type?.includes('powerpoint');
+
+  if (isPresentation) {
+    const { executePresentationTransmute } = await import('../workers/engines/presentationEngine');
+    const fileBuffer = await file.arrayBuffer();
+    const presResult = await executePresentationTransmute(fileBuffer, targetMimeType, fileName);
+    const latencyMs = Math.max(1, Math.round(performance.now() - startTime));
+
+    return {
+      type: 'TRANSMUTE_SUCCESS',
+      id,
+      fileName,
+      outputBuffer: presResult.outputBuffer,
+      outputMimeType: presResult.outputMimeType,
+      latencyMs,
+      originalBytes: file.size,
+      transmutedBytes: presResult.outputBuffer.byteLength,
+      extraMeta: presResult.extraMeta,
+      workerCoreId: 'main-thread-fallback',
+    };
+  }
+
+  // 3. Structured Data (CSV / JSON)
   const isData = lowerName.endsWith('.json') || lowerName.endsWith('.csv') || file?.type?.includes('json') || file?.type?.includes('csv');
 
   if (isData) {
     const text = await file.text();
     let outputBuffer;
-    let outputMimeType = 'text/csv';
+    let outputMimeType;
 
     if (lowerName.endsWith('.json') || file?.type?.includes('json')) {
       // JSON -> CSV
@@ -134,70 +161,22 @@ export async function localFallbackTransmute(task) {
     };
   }
 
-  // 5. Standard Raster Image Transmutation (WebP, PNG, JPEG, AVIF)
+  // 5. Standard / Extended Raster Image Transmutation (WebP, PNG, JPEG, AVIF, BMP, ICO)
+  const { executeImageTransmute } = await import('../workers/engines/imageEngine');
   const fileBuffer = await file.arrayBuffer();
-  const sourceBlob = new Blob([fileBuffer], { type: file.type || 'image/jpeg' });
-  let imageSource;
-
-  try {
-    imageSource = await createImageBitmap(sourceBlob);
-  } catch {
-    imageSource = await new Promise((resolve, reject) => {
-      const img = new Image();
-      const url = URL.createObjectURL(sourceBlob);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        resolve(img);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error('Image decode failed on main thread'));
-      };
-      img.src = url;
-    });
-  }
-
-  const width = imageSource.width || imageSource.naturalWidth || 800;
-  const height = imageSource.height || imageSource.naturalHeight || 600;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(imageSource, 0, 0);
-
-  if (imageSource.close) {
-    imageSource.close();
-  }
-
-  // Maximum quality: 1.0 (highest fidelity preservation)
-  const targetMime = targetMimeType || 'image/webp';
-  const outputBlob = await new Promise((resolve) => {
-    canvas.toBlob(
-      (b) => {
-        if (b) resolve(b);
-        else {
-          canvas.toBlob((fallback) => resolve(fallback), 'image/jpeg', 1.0);
-        }
-      },
-      targetMime,
-      1.0
-    );
-  });
-
-  const outputBuffer = await outputBlob.arrayBuffer();
+  const imageResult = await executeImageTransmute(fileBuffer, file.type, targetMimeType);
   const latencyMs = Math.max(1, Math.round(performance.now() - startTime));
 
   return {
     type: 'TRANSMUTE_SUCCESS',
     id,
     fileName,
-    outputBuffer,
-    outputMimeType: outputBlob.type || targetMime,
+    outputBuffer: imageResult.outputBuffer,
+    outputMimeType: imageResult.outputMimeType,
     latencyMs,
     originalBytes: file.size,
-    transmutedBytes: outputBuffer.byteLength,
-    extraMeta: { width, height },
+    transmutedBytes: imageResult.outputBuffer.byteLength,
+    extraMeta: imageResult.extraMeta,
     workerCoreId: 'main-thread-fallback',
   };
 }
