@@ -16,10 +16,10 @@ export const translations = {
     heroBadgePrivate: 'Fast & Private',
 
     // Workspace Mode Tabs
-    modeImages: 'Image Converter',
-    modePdf: 'PDF Documents',
-    modePresentation: 'PowerPoint (.pptx)',
-    modeData: 'Data (CSV / JSON)',
+    modeImages: 'Images',
+    modePdf: 'PDF',
+    modePresentation: 'PowerPoint',
+    modeData: 'Data',
 
     // Dropzone
     dropHeadlineImage: 'Drop images to convert or compress, or',
@@ -158,10 +158,10 @@ export const translations = {
     heroBadgePrivate: 'سرعة وأمان تام',
 
     // Workspace Mode Tabs
-    modeImages: 'محول الصور',
-    modePdf: 'مستندات PDF',
-    modePresentation: 'عروض PowerPoint (.pptx)',
-    modeData: 'البيانات (CSV / JSON)',
+    modeImages: 'الصور',
+    modePdf: 'PDF',
+    modePresentation: 'عروض PPTX',
+    modeData: 'البيانات',
 
     // Dropzone
     dropHeadlineImage: 'أفلت الصور للتحويل أو الضغط، أو',

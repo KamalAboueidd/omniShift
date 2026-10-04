@@ -5,10 +5,10 @@ export const Hero = () => {
   const isArabic = language === 'ar';
 
   return (
-    <section className="relative pt-6 pb-6 text-center sm:pt-12 sm:pb-8">
+    <section className="relative pt-4 pb-4 text-center sm:pt-8 sm:pb-6">
       {/* Main Headline */}
       <h1
-        className={`mx-auto max-w-2xl text-2xl sm:text-4xl font-bold text-[var(--text-primary)] ${
+        className={`mx-auto max-w-2xl text-xl sm:text-3xl md:text-4xl font-bold text-[var(--text-primary)] ${
           isArabic
             ? 'leading-relaxed sm:leading-relaxed font-sans'
             : 'tracking-tight leading-snug sm:leading-tight'
@@ -19,8 +19,8 @@ export const Hero = () => {
 
       {/* Subtitle */}
       <p
-        className={`mx-auto mt-3 max-w-xl text-sm sm:text-base text-[var(--text-muted)] ${
-          isArabic ? 'leading-relaxed' : 'leading-normal sm:leading-relaxed'
+        className={`mx-auto mt-2 max-w-lg text-xs sm:text-sm text-[var(--text-muted)] ${
+          isArabic ? 'leading-relaxed' : 'leading-relaxed'
         }`}
       >
         {t('heroSubtitle')}

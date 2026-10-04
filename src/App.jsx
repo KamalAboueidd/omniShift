@@ -418,63 +418,65 @@ export const App = () => {
               {/* Step 1: Mode Switcher & Dropzone (when no files staged and not ingesting) */}
               {!hasFiles && !isIngestingFiles && (
                 <>
-                  <div className="flex items-center justify-center gap-1 sm:gap-2 mb-4 select-none flex-nowrap overflow-x-auto no-scrollbar">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode('image');
-                        setTargetMimeType('image/webp');
-                      }}
-                      className={`px-2.5 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                        mode === 'image'
-                          ? 'bg-[#FF5A1F] text-black shadow-2xs font-bold'
-                          : 'text-[var(--text-muted)] hover:text-[#FF5A1F] bg-transparent'
-                      }`}
-                    >
-                      {t('modeImages')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode('pdf');
-                        setTargetMimeType('application/pdf');
-                      }}
-                      className={`px-2.5 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                        mode === 'pdf'
-                          ? 'bg-[#FF5A1F] text-black shadow-2xs font-bold'
-                          : 'text-[var(--text-muted)] hover:text-[#FF5A1F] bg-transparent'
-                      }`}
-                    >
-                      {t('modePdf')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode('presentation');
-                        setTargetMimeType('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-                      }}
-                      className={`px-2.5 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                        mode === 'presentation'
-                          ? 'bg-[#FF5A1F] text-black shadow-2xs font-bold'
-                          : 'text-[var(--text-muted)] hover:text-[#FF5A1F] bg-transparent'
-                      }`}
-                    >
-                      {t('modePresentation') || 'PowerPoint (.pptx)'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode('data');
-                        setTargetMimeType('text/csv');
-                      }}
-                      className={`px-2.5 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                        mode === 'data'
-                          ? 'bg-[#FF5A1F] text-black shadow-2xs font-bold'
-                          : 'text-[var(--text-muted)] hover:text-[#FF5A1F] bg-transparent'
-                      }`}
-                    >
-                      {t('modeData')}
-                    </button>
+                  <div className="flex justify-center mb-4 px-2">
+                    <div className="inline-flex items-center p-1 rounded-xl bg-[var(--bg-surface-1)] border border-[var(--border-subtle)] gap-1 max-w-full overflow-x-auto no-scrollbar">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode('image');
+                          setTargetMimeType('image/webp');
+                        }}
+                        className={`px-3 py-1 sm:px-3.5 sm:py-1.5 text-[11px] sm:text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                          mode === 'image'
+                            ? 'bg-[#FF5A1F] text-black shadow-xs font-semibold'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-2)] font-medium'
+                        }`}
+                      >
+                        {t('modeImages')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode('pdf');
+                          setTargetMimeType('application/pdf');
+                        }}
+                        className={`px-3 py-1 sm:px-3.5 sm:py-1.5 text-[11px] sm:text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                          mode === 'pdf'
+                            ? 'bg-[#FF5A1F] text-black shadow-xs font-semibold'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-2)] font-medium'
+                        }`}
+                      >
+                        {t('modePdf')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode('presentation');
+                          setTargetMimeType('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+                        }}
+                        className={`px-3 py-1 sm:px-3.5 sm:py-1.5 text-[11px] sm:text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                          mode === 'presentation'
+                            ? 'bg-[#FF5A1F] text-black shadow-xs font-semibold'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-2)] font-medium'
+                        }`}
+                      >
+                        {t('modePresentation') || 'PowerPoint'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode('data');
+                          setTargetMimeType('text/csv');
+                        }}
+                        className={`px-3 py-1 sm:px-3.5 sm:py-1.5 text-[11px] sm:text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                          mode === 'data'
+                            ? 'bg-[#FF5A1F] text-black shadow-xs font-semibold'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-2)] font-medium'
+                        }`}
+                      >
+                        {t('modeData')}
+                      </button>
+                    </div>
                   </div>
 
                   <TransmuteDropzone
