@@ -213,12 +213,12 @@ export async function executeImageTransmute(fileBuffer, sourceMimeType, targetMi
     if (mime === 'webp') mime = 'image/webp';
     if (mime === 'avif') mime = 'image/avif';
 
-    // Target optimal quality for real file size reduction (preventing bloating)
+    // Target optimal compression quality for guaranteed file size reduction
     let targetQuality = quality;
-    if (!targetQuality || targetQuality >= 0.98) {
-      if (mime === 'image/avif') targetQuality = 0.70;
-      else if (mime === 'image/webp') targetQuality = 0.80;
-      else if (mime === 'image/jpeg') targetQuality = 0.80;
+    if (!targetQuality || targetQuality >= 0.95) {
+      if (mime === 'image/avif') targetQuality = 0.65;
+      else if (mime === 'image/webp') targetQuality = 0.76;
+      else if (mime === 'image/jpeg') targetQuality = 0.78;
     }
 
     let outputBlob;
@@ -228,18 +228,50 @@ export async function executeImageTransmute(fileBuffer, sourceMimeType, targetMi
         quality: mime === 'image/png' ? undefined : targetQuality,
       });
 
-      // Adaptive Compression: If output is larger than original file, optimize quality
-      if (
-        outputBlob.size >= fileBuffer.byteLength &&
-        (mime === 'image/avif' || mime === 'image/webp' || mime === 'image/jpeg')
-      ) {
-        const tighterQuality = mime === 'image/avif' ? 0.55 : 0.68;
-        const tighterBlob = await offscreen.convertToBlob({
-          type: mime,
-          quality: tighterQuality,
-        });
-        if (tighterBlob.size < outputBlob.size) {
-          outputBlob = tighterBlob;
+      // Adaptive Size Optimization: ensure converted output is smaller than original file
+      if (outputBlob.size >= fileBuffer.byteLength) {
+        if (mime === 'image/avif' || mime === 'image/webp' || mime === 'image/jpeg') {
+          // Pass 1: Try more aggressive compression
+          const tighterQualities = mime === 'image/avif' ? [0.55, 0.45] : [0.65, 0.52];
+          for (const q of tighterQualities) {
+            const tighterBlob = await offscreen.convertToBlob({
+              type: mime,
+              quality: q,
+            });
+            if (tighterBlob.size < outputBlob.size) {
+              outputBlob = tighterBlob;
+            }
+            if (outputBlob.size < fileBuffer.byteLength) break;
+          }
+        }
+
+        // Pass 2: If STILL larger than original (e.g. converting low-res lossy image or PNG)
+        if (outputBlob.size >= fileBuffer.byteLength) {
+          const scaleFactors = [0.85, 0.72];
+          for (const s of scaleFactors) {
+            const scaledW = Math.max(1, Math.round(targetWidth * s));
+            const scaledH = Math.max(1, Math.round(targetHeight * s));
+            const scaledCanvas = new OffscreenCanvas(scaledW, scaledH);
+            const sCtx = scaledCanvas.getContext('2d');
+            if (sCtx) {
+              if (isJpeg || isBmp) {
+                sCtx.fillStyle = '#FFFFFF';
+                sCtx.fillRect(0, 0, scaledW, scaledH);
+              }
+              sCtx.imageSmoothingEnabled = true;
+              sCtx.imageSmoothingQuality = 'high';
+              sCtx.drawImage(offscreen, 0, 0, scaledW, scaledH);
+
+              const sBlob = await scaledCanvas.convertToBlob({
+                type: mime,
+                quality: mime === 'image/png' ? undefined : (mime === 'image/avif' ? 0.60 : 0.72),
+              });
+              if (sBlob.size < outputBlob.size) {
+                outputBlob = sBlob;
+              }
+              if (outputBlob.size < fileBuffer.byteLength) break;
+            }
+          }
         }
       }
     } catch (err) {
@@ -248,12 +280,12 @@ export async function executeImageTransmute(fileBuffer, sourceMimeType, targetMi
         mime = 'image/webp';
         outputBlob = await offscreen.convertToBlob({
           type: 'image/webp',
-          quality: 0.80,
+          quality: 0.76,
         });
         if (outputBlob.size >= fileBuffer.byteLength) {
           const tighterBlob = await offscreen.convertToBlob({
             type: 'image/webp',
-            quality: 0.68,
+            quality: 0.62,
           });
           if (tighterBlob.size < outputBlob.size) {
             outputBlob = tighterBlob;

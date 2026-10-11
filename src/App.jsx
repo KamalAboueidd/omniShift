@@ -130,7 +130,7 @@ export const App = () => {
         nextMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
         setMode('pdf');
       } else if (lower.endsWith('.webp')) {
-        nextMime = 'image/png';
+        nextMime = 'image/webp';
         setMode('image');
       } else if (lower.endsWith('.png')) {
         nextMime = 'image/webp';
@@ -300,14 +300,14 @@ export const App = () => {
         (f) => f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf'
       );
 
-      // Target pacing for visible state: 1.2s - 2.0s based on file count
-      const targetDuration = Math.min(2400, Math.max(1200, rawFiles.length * 400));
+      // Original smooth pacing (~13.5s) with background worker resilience
+      const targetDuration = 13500;
       const startTime = Date.now();
 
-      // 1. Kick off actual client-side transmutation task in Web Workers
+      // 1. Kick off actual client-side transmutation task in Web Workers with optimal compression quality
       const conversionPromise = (isMultiPdf && targetMimeType === 'application/pdf')
         ? mergePdfFiles(rawFiles)
-        : enqueueFiles(rawFiles, targetMimeType, 1.0);
+        : enqueueFiles(rawFiles, targetMimeType, 0.80);
 
       // 2. Animate progress safely, even across background tabs
       const animationPromise = new Promise((resolve) => {

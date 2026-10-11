@@ -86,7 +86,7 @@ class WorkerPool {
 
     return new Promise((resolve, reject) => {
       const task = {
-        quality: 1.0, // Default to highest quality
+        quality: 0.80, // Default to optimal compression quality
         ...taskOptions,
         resolve,
         reject,
