@@ -2,6 +2,7 @@
   <img src="src/assets/icon.png" alt="OmniShift Logo" width="100" />
 </p>
 
+
 # OmniShift: Sovereign In-Memory Client-Side Media and Document Runtime
 
 A high-performance, strictly client-side data transmutation engine designed for contemporary web standards. OmniShift executes image decoding, quantization, vector optimization, document compilation, and tabular serialization directly within volatile browser memory (RAM), eliminating backend computation and network roundtrips.
@@ -9,9 +10,9 @@ A high-performance, strictly client-side data transmutation engine designed for 
 
 ---
 
-## 1. Executive Summary & Core Motivation
+## 1. Executive Summary & Core Motivation 
 
-Traditional web converters enforce an obsolete client-server topology: files must be serialized over the public internet, queued on remote server farms, processed on third-party hardware, and downloaded back to the client. This legacy approach presents severe architectural liabilities:
+ web App  converters enforce an obsolete client-server topology: files must be serialized over the public internet, queued on remote server farms, processed on third-party hardware, and downloaded back to the client. This legacy approach presents severe architectural liabilities:
 - **Data Privacy Violations:** Sensitive intellectual property, corporate documentation, financial records, and medical files are transmitted to untrusted remote disks.
 - **Latency Penalties:** Network upload and download throughput bottlenecks file access, especially on high-resolution photography, raw datasets, or multi-page documents.
 - **Infrastructure Overhead:** Servers require persistent bandwidth, compute clusters, autoscaling infrastructure, and recurring storage expenditure.

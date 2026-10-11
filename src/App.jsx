@@ -309,7 +309,7 @@ export const App = () => {
         ? mergePdfFiles(rawFiles)
         : enqueueFiles(rawFiles, targetMimeType, 0.80);
 
-      // 2. Animate progress safely, even across background tabs
+      // 2. Animate progress steadily at ~13.5s pacing, continuing smoothly across background tabs
       const animationPromise = new Promise((resolve) => {
         let isDone = false;
         let conversionResolved = false;
@@ -324,24 +324,16 @@ export const App = () => {
         const tick = () => {
           if (isDone) return;
 
-          const isHidden = typeof document !== 'undefined' && document.hidden;
-          // If conversion is complete and tab is in background, finish instantly
-          if (conversionResolved && isHidden) {
-            isDone = true;
-            setProcessingProgress(100);
-            setProcessingStep(3);
-            resolve();
-            return;
-          }
-
           const elapsed = Date.now() - startTime;
+          // While conversion is running, cap at 92%. Once conversion completes, allow full progression to 100%
           const progressCap = conversionResolved ? 100 : 92;
           const current = Math.min(progressCap, Math.max(1, Math.floor((elapsed / targetDuration) * 100)));
 
           setProcessingProgress(current);
           updateStep(current);
 
-          if (current >= 100) {
+          // Only finish when full duration (~13.5s) has elapsed AND conversion is ready
+          if (current >= 100 && conversionResolved) {
             isDone = true;
             resolve();
           }
@@ -349,32 +341,19 @@ export const App = () => {
 
         conversionPromise.then(() => {
           conversionResolved = true;
-          // If tab is in background, finish animation immediately without artificial delay
-          if (typeof document !== 'undefined' && document.hidden) {
-            isDone = true;
-            setProcessingProgress(100);
-            setProcessingStep(3);
-            resolve();
-          } else {
-            tick();
-          }
+          tick();
         }).catch(() => {
           conversionResolved = true;
+          tick();
         });
 
-        // Background-safe worker timer prevents browser 1000ms timer throttling
+        // Background-safe worker timer continues ticking in inactive/background tabs
         stopTimer = createWorkerInterval(tick, 35);
 
+        // When returning to tab, sync progress to current timestamp immediately
         const onVisibilityChange = () => {
           if (isDone) return;
-          if (conversionResolved) {
-            isDone = true;
-            setProcessingProgress(100);
-            setProcessingStep(3);
-            resolve();
-          } else {
-            tick();
-          }
+          tick();
         };
 
         document.addEventListener('visibilitychange', onVisibilityChange);
