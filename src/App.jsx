@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { TransmuteDropzone } from './components/TransmuteDropzone';
@@ -12,6 +12,7 @@ import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
 import { useLanguage } from './context/LanguageContext';
 import { memoryManager } from './lib/memoryManager';
 import { triggerDownload } from './lib/utils';
+import { createWorkerInterval } from './lib/workerTimer';
 
 const ACCEPT_ATTRIBUTE = '.png,.jpg,.jpeg,.webp,.avif,.heic,.pdf,.svg,.json,.csv,.pptx,.ppt,image/png,image/jpeg,image/webp,image/avif,application/pdf,image/svg+xml,application/json,text/csv,application/vnd.openxmlformats-officedocument.presentationml.presentation';
 
@@ -150,34 +151,57 @@ export const App = () => {
 
       setTargetMimeType(nextMime);
 
-      // Simulate realistic upload / buffer reading into client memory
-      setIsIngestingFiles(true);
-      setIngestionProgress(25);
+      // Ingestion into client memory
+      const mappedItems = newFiles.map((file) => ({
+        id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        file,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        status: 'staged',
+      }));
 
-      const t1 = setTimeout(() => {
-        setIngestionProgress(75);
-      }, 150);
-
-      const t2 = setTimeout(() => {
-        setIngestionProgress(100);
-
-        const mappedItems = newFiles.map((file) => ({
-          id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          file,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          status: 'staged',
-        }));
-
+      // If tab is in background, stage immediately without waiting
+      if (typeof document !== 'undefined' && document.hidden) {
         setWorkbenchFiles((prev) => [...prev, ...mappedItems]);
         setConversionState('staged');
         setIsIngestingFiles(false);
-      }, 350);
+        return;
+      }
+
+      setIsIngestingFiles(true);
+      setIngestionProgress(35);
+
+      let t1 = null;
+      let t2 = null;
+
+      const finishIngestion = () => {
+        if (t1) clearTimeout(t1);
+        if (t2) clearTimeout(t2);
+        setWorkbenchFiles((prev) => [...prev, ...mappedItems]);
+        setConversionState('staged');
+        setIsIngestingFiles(false);
+      };
+
+      t1 = setTimeout(() => {
+        setIngestionProgress(80);
+      }, 100);
+
+      t2 = setTimeout(() => {
+        finishIngestion();
+      }, 220);
+
+      const onVisibility = () => {
+        if (document.hidden) {
+          finishIngestion();
+        }
+      };
+      document.addEventListener('visibilitychange', onVisibility, { once: true });
 
       return () => {
-        clearTimeout(t1);
-        clearTimeout(t2);
+        if (t1) clearTimeout(t1);
+        if (t2) clearTimeout(t2);
+        document.removeEventListener('visibilitychange', onVisibility);
       };
     },
     []
@@ -257,7 +281,7 @@ export const App = () => {
     }
   }, [workbenchFiles]);
 
-  // Execute standard 3-step conversion flow with smooth 12-15s pacing from 1% to 100%
+  // Execute conversion flow with smooth pacing and complete background-tab resilience
   const handleStartConversion = useCallback(async () => {
     if (workbenchFiles.length === 0) return;
 
@@ -267,7 +291,8 @@ export const App = () => {
     setProcessingProgress(1);
     setWasAutoDownloaded(false);
 
-    let progressTimer = null;
+    let stopTimer = null;
+    let cleanupVisibility = null;
 
     try {
       const rawFiles = workbenchFiles.map((f) => f.file).filter(Boolean);
@@ -275,33 +300,87 @@ export const App = () => {
         (f) => f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf'
       );
 
-      // 1. Kick off actual client-side transmutation task
+      // Target pacing for visible state: 1.2s - 2.0s based on file count
+      const targetDuration = Math.min(2400, Math.max(1200, rawFiles.length * 400));
+      const startTime = Date.now();
+
+      // 1. Kick off actual client-side transmutation task in Web Workers
       const conversionPromise = (isMultiPdf && targetMimeType === 'application/pdf')
         ? mergePdfFiles(rawFiles)
         : enqueueFiles(rawFiles, targetMimeType, 1.0);
 
-      // 2. Smoothly animate progress from 1% to 100% over ~13.5 seconds (135ms per 1%)
+      // 2. Animate progress safely, even across background tabs
       const animationPromise = new Promise((resolve) => {
-        let current = 1;
-        progressTimer = setInterval(() => {
-          current += 1;
-          setProcessingProgress(current);
+        let isDone = false;
+        let conversionResolved = false;
 
-          if (current >= 89) {
+        const updateStep = (pct) => {
+          if (pct >= 89) setProcessingStep(3);
+          else if (pct >= 66) setProcessingStep(2);
+          else if (pct >= 26) setProcessingStep(1);
+          else setProcessingStep(0);
+        };
+
+        const tick = () => {
+          if (isDone) return;
+
+          const isHidden = typeof document !== 'undefined' && document.hidden;
+          // If conversion is complete and tab is in background, finish instantly
+          if (conversionResolved && isHidden) {
+            isDone = true;
+            setProcessingProgress(100);
             setProcessingStep(3);
-          } else if (current >= 66) {
-            setProcessingStep(2);
-          } else if (current >= 26) {
-            setProcessingStep(1);
-          } else {
-            setProcessingStep(0);
+            resolve();
+            return;
           }
+
+          const elapsed = Date.now() - startTime;
+          const progressCap = conversionResolved ? 100 : 92;
+          const current = Math.min(progressCap, Math.max(1, Math.floor((elapsed / targetDuration) * 100)));
+
+          setProcessingProgress(current);
+          updateStep(current);
 
           if (current >= 100) {
-            clearInterval(progressTimer);
+            isDone = true;
             resolve();
           }
-        }, 135);
+        };
+
+        conversionPromise.then(() => {
+          conversionResolved = true;
+          // If tab is in background, finish animation immediately without artificial delay
+          if (typeof document !== 'undefined' && document.hidden) {
+            isDone = true;
+            setProcessingProgress(100);
+            setProcessingStep(3);
+            resolve();
+          } else {
+            tick();
+          }
+        }).catch(() => {
+          conversionResolved = true;
+        });
+
+        // Background-safe worker timer prevents browser 1000ms timer throttling
+        stopTimer = createWorkerInterval(tick, 35);
+
+        const onVisibilityChange = () => {
+          if (isDone) return;
+          if (conversionResolved) {
+            isDone = true;
+            setProcessingProgress(100);
+            setProcessingStep(3);
+            resolve();
+          } else {
+            tick();
+          }
+        };
+
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        cleanupVisibility = () => {
+          document.removeEventListener('visibilitychange', onVisibilityChange);
+        };
       });
 
       // Wait for both conversion computation and the smooth visual pacing
@@ -309,7 +388,11 @@ export const App = () => {
 
       setProcessingProgress(100);
       setProcessingStep(3);
-      await new Promise((r) => setTimeout(r, 280)); // Brief pause at 100%
+
+      const isHidden = typeof document !== 'undefined' && document.hidden;
+      if (!isHidden) {
+        await new Promise((r) => setTimeout(r, 120)); // Brief pause at 100% when visible
+      }
 
       const validResults = (results || []).filter(Boolean);
       if (validResults.length > 0) {
@@ -318,7 +401,7 @@ export const App = () => {
 
         // Auto-Download trigger when enabled
         if (autoDownload) {
-          setTimeout(() => {
+          const runDownload = () => {
             if (validResults.length === 1 && (validResults[0].blob || validResults[0].downloadUrl)) {
               triggerDownload(
                 validResults[0].blob || validResults[0].downloadUrl,
@@ -329,7 +412,13 @@ export const App = () => {
               handleDownloadAllZip();
               setWasAutoDownloaded(true);
             }
-          }, 180);
+          };
+
+          if (isHidden) {
+            runDownload();
+          } else {
+            setTimeout(runDownload, 100);
+          }
         }
       } else {
         setConversionState('staged');
@@ -338,7 +427,8 @@ export const App = () => {
       console.error('Conversion failed:', err);
       setConversionState('staged');
     } finally {
-      if (progressTimer) clearInterval(progressTimer);
+      if (stopTimer) stopTimer();
+      if (cleanupVisibility) cleanupVisibility();
       setIsProcessing(false);
     }
   }, [workbenchFiles, targetMimeType, autoDownload, enqueueFiles, mergePdfFiles, handleDownloadAllZip]);
@@ -363,6 +453,27 @@ export const App = () => {
       }
     }
   }, [conversionState, workbenchFiles, handleDownloadIndividual, handleDownloadAllZip]);
+
+  // If autoDownload was enabled and conversion completed while in background,
+  // ensure file download triggers immediately upon user returning to the tab
+  useEffect(() => {
+    const handleVisibilitySync = () => {
+      if (!document.hidden && conversionState === 'completed' && autoDownload && !wasAutoDownloaded) {
+        if (workbenchFiles.length === 1 && (workbenchFiles[0].blob || workbenchFiles[0].downloadUrl)) {
+          triggerDownload(
+            workbenchFiles[0].blob || workbenchFiles[0].downloadUrl,
+            workbenchFiles[0].outputFileName || workbenchFiles[0].fileName || workbenchFiles[0].name
+          );
+          setWasAutoDownloaded(true);
+        } else if (workbenchFiles.length > 1) {
+          handleDownloadAllZip();
+          setWasAutoDownloaded(true);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilitySync);
+    return () => document.removeEventListener('visibilitychange', handleVisibilitySync);
+  }, [conversionState, autoDownload, wasAutoDownloaded, workbenchFiles, handleDownloadAllZip]);
 
   useGlobalShortcuts({
     onFilesPasted: (files) => {
