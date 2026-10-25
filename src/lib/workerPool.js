@@ -121,8 +121,26 @@ class WorkerPool {
     if (!idleSlot) return; // All cores saturated
 
     // High-Resolution & Heavy task throttling: Process heavy tasks sequentially to prevent browser tab OOM
+    const checkIsHeavy = (t) => {
+      const isLargeFile = Boolean(t.file && t.file.size > 8 * 1024 * 1024);
+      const isMerge = t.type === 'TRANSMUTE_PDF_MERGE' || t.type === 'TRANSMUTE_IMAGES_COMBINE_PDF' || t.type === 'TRANSMUTE_COMBINE_FILES';
+      const isMultiItem = Boolean(t.items && t.items.length > 1);
+      const isDocument = Boolean(
+        t.file && (
+          t.file.type === 'application/pdf' ||
+          t.file.name?.toLowerCase().endsWith('.pdf') ||
+          t.file.name?.toLowerCase().endsWith('.pptx') ||
+          t.file.name?.toLowerCase().endsWith('.ppt') ||
+          t.targetMimeType === 'image/png' ||
+          t.targetMimeType?.includes('word') ||
+          t.targetMimeType?.includes('docx')
+        )
+      );
+      return isLargeFile || isMerge || isMultiItem || isDocument;
+    };
+
     const taskIndex = this.taskQueue.findIndex((t) => {
-      const isTaskHeavy = (t.file && t.file.size > 15 * 1024 * 1024) || t.type === 'TRANSMUTE_PDF_MERGE' || t.type === 'TRANSMUTE_IMAGES_COMBINE_PDF';
+      const isTaskHeavy = checkIsHeavy(t);
       if (isTaskHeavy && this.heavyTaskActive) {
         return false;
       }
@@ -133,7 +151,7 @@ class WorkerPool {
     const task = this.taskQueue.splice(taskIndex, 1)[0];
     if (!task) return;
 
-    const isThisTaskHeavy = (task.file && task.file.size > 15 * 1024 * 1024) || task.type === 'TRANSMUTE_PDF_MERGE' || task.type === 'TRANSMUTE_IMAGES_COMBINE_PDF';
+    const isThisTaskHeavy = checkIsHeavy(task);
     if (isThisTaskHeavy) {
       this.heavyTaskActive = true;
     }
@@ -158,9 +176,9 @@ class WorkerPool {
       this._processNext();
     };
 
-    // Adaptive timeout watchdog: 10s for standard tasks, 25s for heavy multi-page or 24MP+ images
-    const timeoutLimit = isThisTaskHeavy ? 25000 : 10000;
-    timeoutId = setTimeout(async () => {
+    // Adaptive timeout watchdog: 20s for standard tasks, 60s for heavy multi-page documents or large files
+    const timeoutLimit = isThisTaskHeavy ? 60000 : 20000;
+    const onTimeoutWatchdog = async () => {
       if (isSettled) return;
       isSettled = true;
       console.warn(`Worker task [${task.id}] timed out (${timeoutLimit}ms). Failing over to main-thread fallback.`);
@@ -175,7 +193,9 @@ class WorkerPool {
       } catch (fbErr) {
         task.reject(fbErr);
       }
-    }, timeoutLimit);
+    };
+
+    timeoutId = setTimeout(onTimeoutWatchdog, timeoutLimit);
 
     const messageHandler = (e) => {
       const msg = e.data;
@@ -183,6 +203,11 @@ class WorkerPool {
 
       if (msg.type === 'TRANSMUTE_PROGRESS') {
         task.onProgress?.(msg.phase);
+        // Progress Heartbeat: As long as the worker is actively producing progress, extend watchdog timer
+        if (timeoutId && !isSettled) {
+          clearTimeout(timeoutId);
+          timeoutId = setTimeout(onTimeoutWatchdog, timeoutLimit);
+        }
       } else if (msg.type === 'TRANSMUTE_SUCCESS') {
         if (isSettled) return;
         isSettled = true;

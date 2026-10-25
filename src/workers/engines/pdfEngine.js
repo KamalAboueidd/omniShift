@@ -240,7 +240,7 @@ async function extractTextFallbackFromPdf(fileBuffer) {
 /**
  * Extracts structured text lines, typography layout, and table grids from PDF.
  */
-export async function extractTextAndLayoutFromPdf(fileBuffer) {
+export async function extractTextAndLayoutFromPdf(fileBuffer, onProgress) {
   try {
     const loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(fileBuffer),
@@ -254,6 +254,7 @@ export async function extractTextAndLayoutFromPdf(fileBuffer) {
     let totalAlphaNum = 0;
 
     for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      onProgress?.(`EXTRACTING_PAGE_${pageNum}_OF_${numPages}`);
       const page = await loadedPdfDoc.getPage(pageNum);
       const viewport = page.getViewport({ scale: 1.0 });
       const pageWidth = viewport.width || (page.view ? page.view[2] : 612);
@@ -491,6 +492,10 @@ export async function extractTextAndLayoutFromPdf(fileBuffer) {
         });
       }
 
+      if (typeof page.cleanup === 'function') {
+        page.cleanup();
+      }
+
       pagesData.push({
         pageNum,
         width: pageWidth,
@@ -580,10 +585,10 @@ function buildTextRuns(tokens, bodyFontSize, options = {}) {
  * Converts PDF into a Word .docx document using docx.js,
  * applying pixel-tight 1-page modern resume visual formatting.
  */
-export async function pdfToDocx(fileBuffer) {
+export async function pdfToDocx(fileBuffer, onProgress) {
   let extractionResult;
   try {
-    extractionResult = await extractTextAndLayoutFromPdf(fileBuffer);
+    extractionResult = await extractTextAndLayoutFromPdf(fileBuffer, onProgress);
   } catch (err) {
     throw formatPdfError(err);
   }
@@ -597,6 +602,7 @@ export async function pdfToDocx(fileBuffer) {
 
     if (pdfDoc) {
       for (let p = 1; p <= numPages; p++) {
+        onProgress?.(`RASTERIZING_SCANNED_PAGE_${p}_OF_${numPages}`);
         let pagePngBuffer = null;
         try {
           const page = await pdfDoc.getPage(p);
@@ -606,6 +612,9 @@ export async function pdfToDocx(fileBuffer) {
           await page.render({ canvasContext: ctx, viewport }).promise;
           const blob = await canvas.convertToBlob({ type: 'image/png' });
           pagePngBuffer = await blob.arrayBuffer();
+          if (typeof page.cleanup === 'function') {
+            page.cleanup();
+          }
         } catch (renderErr) {
           console.warn(`Scanned page ${p} rasterization warning:`, renderErr);
         }
@@ -961,10 +970,10 @@ export async function pdfToDocx(fileBuffer) {
 /**
  * Extracts plain text from PDF with layout preserving line breaks.
  */
-export async function pdfToText(fileBuffer) {
+export async function pdfToText(fileBuffer, onProgress) {
   let extractionResult;
   try {
-    extractionResult = await extractTextAndLayoutFromPdf(fileBuffer);
+    extractionResult = await extractTextAndLayoutFromPdf(fileBuffer, onProgress);
   } catch (err) {
     throw formatPdfError(err);
   }
@@ -1002,9 +1011,10 @@ export async function pdfToText(fileBuffer) {
 /**
  * Renders PDF pages to high-resolution PNG images.
  */
-export async function pdfToPngPages(fileBuffer) {
+export async function pdfToPngPages(fileBuffer, onProgress) {
   let loadingTask;
   try {
+    onProgress?.('LOADING_PDF_DOCUMENT');
     loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(fileBuffer),
       isEvalSupported: false,
@@ -1018,6 +1028,7 @@ export async function pdfToPngPages(fileBuffer) {
   const numPages = pdfDoc.numPages;
 
   if (numPages === 1) {
+    onProgress?.('RENDERING_PAGE_1_OF_1');
     const page = await pdfDoc.getPage(1);
     const viewport = page.getViewport({ scale: 2.0 });
     const canvas = new OffscreenCanvas(Math.round(viewport.width), Math.round(viewport.height));
@@ -1025,6 +1036,9 @@ export async function pdfToPngPages(fileBuffer) {
     await page.render({ canvasContext: ctx, viewport }).promise;
     const blob = await canvas.convertToBlob({ type: 'image/png' });
     const outputBuffer = await blob.arrayBuffer();
+    if (typeof page.cleanup === 'function') {
+      page.cleanup();
+    }
 
     return {
       outputBuffer,
@@ -1041,6 +1055,7 @@ export async function pdfToPngPages(fileBuffer) {
   // Multi-page: Zip all rendered pages
   const zip = new JSZip();
   for (let p = 1; p <= numPages; p++) {
+    onProgress?.(`RENDERING_PAGE_${p}_OF_${numPages}`);
     const page = await pdfDoc.getPage(p);
     const viewport = page.getViewport({ scale: 2.0 });
     const canvas = new OffscreenCanvas(Math.round(viewport.width), Math.round(viewport.height));
@@ -1049,11 +1064,16 @@ export async function pdfToPngPages(fileBuffer) {
     const blob = await canvas.convertToBlob({ type: 'image/png' });
     const buffer = await blob.arrayBuffer();
     zip.file(`page_${String(p).padStart(2, '0')}.png`, buffer);
+    if (typeof page.cleanup === 'function') {
+      page.cleanup();
+    }
   }
 
+  onProgress?.('PACKAGING_ZIP_ARCHIVE');
+  // PNG buffers are already internally compressed. STORE avoids expensive re-compression cycles.
   const outputBuffer = await zip.generateAsync({
     type: 'arraybuffer',
-    compression: 'DEFLATE',
+    compression: 'STORE',
   });
 
   return {
@@ -1238,14 +1258,14 @@ export async function optimizePdf(fileBuffer) {
 /**
  * Master PDF transmutation dispatcher.
  */
-export async function executePdfTransmute(fileBuffer, targetMimeType) {
+export async function executePdfTransmute(fileBuffer, targetMimeType, onProgress) {
   try {
     if (
       targetMimeType.includes('word') ||
       targetMimeType.includes('docx') ||
       targetMimeType === 'DOCX'
     ) {
-      return await pdfToDocx(fileBuffer);
+      return await pdfToDocx(fileBuffer, onProgress);
     }
 
     if (
@@ -1262,7 +1282,7 @@ export async function executePdfTransmute(fileBuffer, targetMimeType) {
       targetMimeType.includes('txt') ||
       targetMimeType === 'TXT'
     ) {
-      return await pdfToText(fileBuffer);
+      return await pdfToText(fileBuffer, onProgress);
     }
 
     if (
@@ -1270,7 +1290,7 @@ export async function executePdfTransmute(fileBuffer, targetMimeType) {
       targetMimeType.includes('png') ||
       targetMimeType === 'PNG'
     ) {
-      return await pdfToPngPages(fileBuffer);
+      return await pdfToPngPages(fileBuffer, onProgress);
     }
 
     return await optimizePdf(fileBuffer);

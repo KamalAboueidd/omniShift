@@ -127,9 +127,9 @@ self.onmessage = async (event) => {
       outputMimeType = svgResult.outputMimeType;
       extraMeta = svgResult.extraMeta;
     } else if (isPdf) {
-      // PDF Local Engine (Compress, Word DOCX, Plain Text)
+      // PDF Local Engine (Compress, Word DOCX, Plain Text, PNG Pages)
       postProgress('PROCESSING_PDF_STREAM');
-      const pdfResult = await executePdfTransmute(fileBuffer, targetMimeType);
+      const pdfResult = await executePdfTransmute(fileBuffer, targetMimeType, postProgress);
       outputBuffer = pdfResult.outputBuffer;
       outputMimeType = pdfResult.outputMimeType;
       extraMeta = pdfResult.extraMeta;
