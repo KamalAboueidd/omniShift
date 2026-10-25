@@ -392,10 +392,12 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
         {!isCompleted && !isProcessing && (
           <div className="mt-4 pt-4 border-t border-[var(--border-subtle)] flex flex-col sm:flex-row items-center justify-between gap-3">
             <span className="text-xs text-[var(--text-muted)] font-mono">
-              {t('readyToTransmute', { 
-                count: files.length, 
-                plural: files.length > 1 ? 's' : '' 
-              })}
+              {activeFileType === 'combine'
+                ? t('readyToCombine', { count: files.length })
+                : t('readyToTransmute', { 
+                    count: files.length, 
+                    plural: files.length > 1 ? 's' : '' 
+                  })}
             </span>
 
             {/* Clean, Standard-height Action Button */}
@@ -405,8 +407,14 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
               className="w-full sm:w-auto h-10 sm:h-11 px-5 rounded-lg bg-[#FF5A1F] text-xs sm:text-sm font-semibold text-black hover:bg-[#ff6f3b] transition-colors cursor-pointer shadow-xs inline-flex items-center justify-center gap-2"
             >
               <span>
-                {files.length > 1
-                  ? t('transmuteTo', { count: `(${files.length})`, format: targetFormatLabel })
+                {activeFileType === 'combine'
+                  ? (files.every((f) => (f.name || f.fileName || '').toLowerCase().endsWith('.pdf') || (f.type || f.file?.type) === 'application/pdf')
+                      ? t('combinePdfButton', { count: files.length })
+                      : files.every((f) => (f.type || f.file?.type)?.startsWith('image/') || /\.(png|jpe?g|webp|avif|heic|bmp|svg)$/i.test(f.name || f.fileName || ''))
+                      ? t('combineImagesButton', { count: files.length })
+                      : t('combineMixedButton', { count: files.length }))
+                  : files.length > 1
+                  ? t('transmuteTo', { count: files.length, format: targetFormatLabel })
                   : t('convertTo', { format: targetFormatLabel })}
               </span>
               <ArrowRight className="h-4 w-4 rtl:rotate-180" />

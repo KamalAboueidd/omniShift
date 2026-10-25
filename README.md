@@ -28,13 +28,16 @@ OmniShift couples mathematical rigour with an ergonomic, dark-first studio inter
 
 ### 2.1 Studio Landing & Zero-Egress Workspace
 
-The primary view provides an instantaneous, distraction-free environment for single-file and multi-file drag-and-drop operations. The workspace displays format category switches (Image Converter, PDF Documents, and Structured Data), a resilient drag-and-drop target zone, and a quick-load 4K benchmark preset for rapid client testing.
+The primary view provides an instantaneous, distraction-free environment for single-file, batch, and merge operations. The workspace features three streamlined, high-performance operational modes:
+- **Images (الصور):** Transcode, compress, or export images to WebP, AVIF, PNG, JPEG, BMP, ICO, or PDF Document.
+- **Documents (PDF) (المستندات):** Transform PDF files in volatile memory into editable Word (`.docx`), Plain Text (`.txt`), or High-Res Pages as PNG (`.png` for single page, `.zip` for multi-page).
+- **Combine / Merge (دمج الملفات):** Stitch multiple PDFs, multiple images, or mixed PDF + Image collections into a single unified PDF document.
 
-All visual states emphasize client-side isolation, explicitly declaring the local nature of the memory heap and the absence of cloud ingress.
+The landing interface features one-click procedural sample loaders to benchmark local hardware immediately without needing local test files: a 4K Specimen Image, a Multi-Page PDF Specification, 2 Sample PDFs for merging, and a Mixed PDF + Image preset.
 
 ![OmniShift Studio Landing Interface](src/assets/ReadmeImages/1.webp)
 
-*OmniShift Studio landing interface: Minimalist layout featuring the core headline, category mode selector (Images, PDF, Data), in-memory dropzone, and 4K sample loader.*
+*OmniShift Studio landing interface: Streamlined layout featuring the 3 core modes (Images, Documents PDF, Combine/Merge), in-memory dropzone, and one-click sample presets.*
 
 ---
 
@@ -44,8 +47,12 @@ When files are dropped or loaded from the local filesystem, they bypass disk wri
 
 The workbench displays:
 - **Active Staged Files List:** Individual file cards detailing source extension, filename, and exact byte allocation in memory.
-- **Format Target Selector:** Responsive format selector pills (WebP, AVIF, PNG, JPEG) with dynamic compression modes (including Bit-exact Lossless mode).
+- **Target Format Selector:**
+  - *Images Mode:* WebP, AVIF, PNG, JPEG, PDF Document, BMP, ICO.
+  - *Documents (PDF) Mode:* Word (`.docx`), Plain Text (`.txt`), Pages as PNG (`.png` / `.zip`).
+  - *Combine / Merge Mode:* Unified PDF (`.pdf`) consolidating multiple files.
 - **Automation Pipeline:** Configurable Auto-Download toggle that initiates deterministic browser downloads the instant the background worker finishes compiling.
+- **Intelligent Fault Tolerance:** If mixed file formats (PDF + images) are dropped together, OmniShift automatically routes them to Combine mode. If non-convertible files (such as video or audio) are dropped, they are safely filtered out with an informative notification banner without halting execution.
 - **Queue Management:** Controls to stage additional files concurrently or cleanly purge volatile memory via the Clear All action.
 
 ![OmniShift Staging Workbench](src/assets/ReadmeImages/2.webp)
@@ -54,18 +61,17 @@ The workbench displays:
 
 ---
 
-### 2.3 Real-Time Multi-Threaded Processing & Telemetry
+### 2.3 Real-Time Multi-Threaded Processing & Snappy Telemetry
 
-Clicking the primary execution trigger offloads computation from the browser's UI thread to a dedicated Web Worker cluster. 
-
-The live processing state provides real-time transparency:
+Clicking the primary execution trigger offloads computation from the browser's UI thread to a dedicated Web Worker pool. Execution is snappy (~600ms hardware-paced feedback loop) while maintaining zero main-thread starvation:
 - **Phase Indication:** Granular status indicators tracking buffer ingestion, multi-threaded worker encoding, stream validation, and output finalization.
-- **Deterministic Progress Tracking:** Continuous hardware-paced progress bar driven by actual byte chunk processing rather than arbitrary CSS animations.
+- **Deterministic Hardware Progress:** Hardware-paced progress bar driven by actual byte chunk processing rather than arbitrary delays.
+- **Instant Telemetry HUD:** Displays exact latency in milliseconds, throughput in MB/s, and byte compression delta immediately upon completion.
 - **Zero-Egress Security Badge:** Constant runtime verification affirming zero bytes transferred over any network socket.
 
 ![OmniShift Real-Time Processing](src/assets/ReadmeImages/3.webp)
 
-*OmniShift Multi-Threaded Processing State: Progress indicator at 65% during worker thread execution with active hardware status and in-memory safety notice.*
+*OmniShift Multi-Threaded Processing State: Snappy progress indicator during worker thread execution with active hardware status and in-memory safety notice.*
 
 ---
 
@@ -74,9 +80,9 @@ The live processing state provides real-time transparency:
 OmniShift features an integrated, standalone Technical Guide that provides developers and engineering teams with direct transparency into the runtime architecture.
 
 The technical guide covers:
-- **Subsystem Deep Dives:** Detailed documentation on the OffscreenCanvas Image Engine, the in-memory PDF compiler (`pdf-lib`), and Tabular serialization pipelines.
+- **Subsystem Deep Dives:** Detailed documentation on the OffscreenCanvas Image Engine, the Documents & PDF Engine (Word, Text, PNG pages), and the Universal Combine & Merge synthesizer.
 - **Format Directives:** Concrete recommendations on when to select WebP versus AVIF versus PNG based on compression characteristics, alpha channel retention, and decoder performance.
-- **Under The Hood Diagnostics:** Architectural write-ups regarding thread scheduling, EXIF orientation correction, zero main-thread starvation, and vector XML sanitization.
+- **Edge-Case Resilience:** How the system handles mixed image+PDF batches, scanned document fallbacks, Arabic RTL typography, and unsupported file filtering.
 
 ![OmniShift Technical Documentation Guide](src/assets/ReadmeImages/4.webp)
 
@@ -105,7 +111,7 @@ The embedded System Overview provides an objective comparison between OmniShift'
 
 The analysis highlights five fundamental operational metrics:
 - **Data Privacy:** 100% local zero-egress processing versus third-party server exposure.
-- **Processing Latency:** Pure CPU/memory bound speeds versus bandwidth-throttled uploads.
+- **Processing Latency:** Pure CPU/memory bound speeds (~600ms) versus bandwidth-throttled uploads.
 - **Bandwidth Consumption:** 0 bytes network payload versus 2x file size upload/download roundtrips.
 - **Offline Reliability:** Uninterrupted offline functionality versus total network dependency.
 - **Operational Model:** Free, open-source, and unmetered versus subscription tiers and artificial daily quotas.
@@ -117,7 +123,6 @@ The analysis highlights five fundamental operational metrics:
 ---
 
 ## 3. System Architecture & Technical Specifications
-
 
 ### 3.1 Zero-Copy Transferable Pipeline
 Standard Web Worker communication via `postMessage()` relies on structured cloning, which duplicates megabytes of memory across thread boundaries. OmniShift completely circumvents this memory penalty by transferring byte ownership directly via Transferable Objects:
@@ -150,11 +155,12 @@ Browsers do not automatically garbage collect memory references tied to `blob:` 
 
 | Subsystem | Input Formats | Output Formats | Internal Engine & Method |
 | :--- | :--- | :--- | :--- |
-| **Raster Engine** | PNG, JPEG, JPG, WebP, AVIF, HEIC, BMP | WebP, AVIF, PNG, JPEG | `OffscreenCanvas`, native browser codecs, hardware quantization, bicubic resampling. |
-| **Document Compiler** | PDF | PDF, DOCX, TXT | Linearized in-memory object stream manipulation, Flate decoding (`pako`), document merging via `pdf-lib`. |
-| **Tabular Engine** | JSON, CSV | CSV, JSON | Delimiter auto-detection, RFC 4180 parsing, record flattening, bidirectional schema transformation. |
-| **Vector Engine** | SVG | Minified SVG, Raster PNG | XML AST parsing, namespace pruning, decimal precision truncation, OffscreenCanvas vector rasterization. |
-| **Archive Compiler** | Mixed batch files | ZIP (.zip) | Multi-core parallel encoding with client-side in-memory Deflate compression via `JSZip`. |
+| **Raster Engine** | PNG, JPEG, JPG, WebP, AVIF, HEIC, BMP, ICO | WebP, AVIF, PNG, JPEG, PDF Document, BMP, ICO | `OffscreenCanvas`, native browser codecs, hardware quantization, bicubic resampling, and in-memory PDF page compilation via `pdf-lib`. |
+| **Document Transmutation Engine** | PDF | Word (.docx), Plain Text (.txt), Pages as PNG (.png / .zip archive) | `pdfjs-dist` text tokenization, layout-aware reconstruction, `docx` XML generation with native RTL/Arabic text shaping, and 2x OffscreenCanvas page rendering. |
+| **Universal Combine & Merge Engine** | Multiple PDFs, Multiple Images, or Mixed PDFs + Images | Unified PDF (.pdf) | In-memory stream splicing via `pdf-lib`, proportional image embedding, page sequence preservation, auto-mode switching, and empty-stream guards. |
+| **Vector Engine** | SVG | Minified SVG, High-Res PNG, WebP, JPEG | XML AST parsing, namespace pruning, decimal precision truncation, and vector-to-raster OffscreenCanvas conversion. |
+| **Tabular Engine** | JSON, CSV | CSV, JSON | RFC 4180 parsing, UTF-8 BOM injection for Excel Arabic compatibility, and bidirectional schema serialization. |
+| **Archive Compiler** | Multi-page PDF exports, batch outputs | ZIP (.zip) | Multi-core parallel encoding with client-side in-memory Deflate compression via `JSZip`. |
 
 ---
 

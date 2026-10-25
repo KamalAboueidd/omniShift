@@ -4,6 +4,7 @@ import {
   BookOpen, 
   Image, 
   FileText, 
+  Combine,
   Database, 
   Cpu, 
   ShieldCheck, 
@@ -32,6 +33,7 @@ export const GuidePage = memo(function GuidePage({ onBackToApp }) {
       items: [
         { id: 'images', label: t('docImageEngine'), icon: Image },
         { id: 'pdf', label: t('docPdfEngine'), icon: FileText },
+        { id: 'combine', label: t('docCombineEngine'), icon: Combine },
         { id: 'data', label: t('docDataEngine'), icon: Database },
       ],
     },
@@ -293,11 +295,11 @@ export const GuidePage = memo(function GuidePage({ onBackToApp }) {
                 </li>
                 <li>
                   <strong className="text-[var(--text-primary)]">
-                    {lang === 'ar' ? 'التعرف الذكي وتحديد الصيغة:' : 'Format Selection:'}
+                    {lang === 'ar' ? 'التعرف الذكي وتحديد الصيغة:' : 'Intelligent Categorization & Format Selection:'}
                   </strong>{' '}
                   {lang === 'ar'
-                    ? 'يتعرف OmniShift تلقائياً على نوع الملفات المضافة؛ إذا أضفت صوراً يتيح لك صيغ WebP و AVIF و PNG و JPEG، وإذا أسقطت ملفين PDF أو أكثر يتحول النظام تلقائياً لوضع دمج المستندات (PDF Merge)، وإذا كانت ملفات بيانات يتيح لك جداول CSV و JSON. اختر الصيغة المطلوبة بنقرة واحدة.'
-                    : 'OmniShift dynamically categorizes files: raster images unlock WebP, AVIF, PNG, and JPEG; multiple PDFs activate the document merger; and data files activate CSV/JSON tabular modes.'}
+                    ? 'يتعرف OmniShift تلقائياً على الملفات المضافة؛ إذا أضفت صوراً يتيح لك تحويلها إلى WebP أو AVIF أو PNG أو JPEG أو مستند PDF. وإذا أضفت مستند PDF يتيح لك تحويله إلى Word (.docx) أو نص مكتوب (.txt) أو صفحات PNG (كصور مفردة أو أرشيف ZIP). وإذا قمت بإسقاط ملفات PDF متعددة أو صور متعددة أو خليط من PDF وصور معاً، يتحول النظام تلقائياً لوضع دمج وتجميع الملفات (Combine / Merge) لدمجهم في مستند PDF واحد.'
+                    : 'OmniShift dynamically categorizes files: images unlock WebP, AVIF, PNG, JPEG, and PDF Export; PDF documents unlock Word (.docx), Plain Text (.txt), and Pages as PNG (single image or ZIP archive); and multi-file PDF/image batches automatically activate the Universal Combine / Merge engine to unify them into a single PDF.'}
                 </li>
                 <li>
                   <strong className="text-[var(--text-primary)]">
@@ -412,35 +414,136 @@ export const GuidePage = memo(function GuidePage({ onBackToApp }) {
             <article className={cn('space-y-5', 'text-sm', 'text-[var(--text-muted)]', 'leading-relaxed')}>
               <div>
                 <h1 className={cn('text-2xl sm:text-3xl', 'font-bold', 'tracking-tight', 'text-[var(--text-primary)]')}>
-                  {lang === 'ar' ? 'محرك مستندات PDF في الذاكرة' : 'In-Memory PDF Document Engine'}
+                  {lang === 'ar' ? 'محرك المستندات و PDF (Word / Text / PNG)' : 'Document & PDF Engine (Word / Text / PNG)'}
                 </h1>
                 <p className="mt-3 text-base text-[var(--text-muted)]">
                   {lang === 'ar'
-                    ? 'يقوم محرك PDF في OmniShift بمعالجة المستندات عبر تكامل خفيف لمكتبة pdf-lib، ينفذ عمليات الدمج والضغط واستخراج المحتوى مباشرة على مصفوفات Uint8Array في ذاكرة RAM دون حفظ أي ملفات مؤقتة على القرص.'
-                    : 'The PDF engine operates over Uint8Array buffers in memory using a client-side pdf-lib integration, executing merges and optimizations without touching server disks.'}
+                    ? 'يقوم محرك المستندات في OmniShift بقراءة وتحليل ملفات الـ PDF في الذاكرة المتقلبة RAM عبر تكامل هجين يجمع بين pdfjs-dist و docx و JSZip، مع دعم متقدم للغة العربية وتشكيل الفقرات RTL.'
+                    : 'The OmniShift Document Engine processes PDF files in volatile memory using a hybrid integration of pdfjs-dist, docx, and JSZip with native RTL/Arabic text shaping.'}
                 </p>
               </div>
 
               <div className="space-y-3">
                 <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                  {lang === 'ar' ? 'دمج ملفات PDF المتعددة (Multi-PDF Merge)' : 'One-Click Multi-PDF Merge'}
+                  {lang === 'ar' ? 'مسارات التحويل المدعومة لمستندات PDF' : 'Supported PDF Conversion Pipelines'}
                 </h2>
-                <p>
-                  {lang === 'ar'
-                    ? 'عندما تقوم بإسقاط ملفين أو أكثر من نوع PDF داخل OmniShift، يستشعر النظام فوراً حالة الدمج ويعرض لك زراً مخصصاً "Merge Documents". يقوم المحرك بإنشاء مستند PDF جديد في الذاكرة، ويقوم بنسخ صفحات كل مستند بالترتيب مع الحفاظ الكامل على الخطوط المتجهة (Vector Fonts)، الروابط الداخلية، والطبقات، وينتج ملفاً نهائياً موحداً وجاهزاً للتنزيل فوراً.'
-                    : 'When you stage two or more PDF files, OmniShift automatically enters merge mode. It stitches pages in sequence, preserving vector typography, hyperlinks, and document structure into a consolidated output.'}
-                </p>
+                <ul className="list-disc pl-5 rtl:pr-5 rtl:pl-0 space-y-2.5">
+                  <li>
+                    <strong className="text-[var(--text-primary)]">
+                      {lang === 'ar' ? 'تحويل PDF إلى Word (.docx):' : 'PDF to Word (.docx):'}
+                    </strong>{' '}
+                    {lang === 'ar'
+                      ? 'استخراج النصوص وتنسيق الفقرات مع التعرف على العناوين والجداول وتحديد اتجاه القراءة من اليمين إلى اليسار (RTL) للنصوص العربية، مما ينتج ملف Word قابل للتعديل بالكامل.'
+                      : 'Extracts text and layout tokens into editable docx documents, with calibrated typography and native RTL paragraph direction for Arabic text.'}
+                  </li>
+                  <li>
+                    <strong className="text-[var(--text-primary)]">
+                      {lang === 'ar' ? 'تحويل PDF إلى نص نقي (.txt):' : 'PDF to Plain Text (.txt):'}
+                    </strong>{' '}
+                    {lang === 'ar'
+                      ? 'استخراج رقمي عالي الدقة للنصوص مع الحفاظ على الفواصل الطبيعية بين الأسطر وأرقام الصفحات (=== Page X ===)، مثالي للاستخدام مع نماذج الذكاء الاصطناعي ومعالجة النصوص.'
+                      : 'High-speed text extraction preserving natural line breaks and page markers (=== Page X ===), ideal for LLM processing and text indexing.'}
+                  </li>
+                  <li>
+                    <strong className="text-[var(--text-primary)]">
+                      {lang === 'ar' ? 'تحويل PDF إلى صفحات كـ PNG (Pages as PNG):' : 'PDF to Pages as PNG:'}
+                    </strong>{' '}
+                    {lang === 'ar'
+                      ? 'رسم كل صفحة بدقة مضاعفة (2x High-DPI Canvas). إذا كان المستند صفحة واحدة يتم تنزيله كصورة PNG نقية مباشرة، وإذا كان متعدد الصفحات يتم حزم كافة الصفحات آلياً داخل ملف مضغوط (.zip) يحتوي على page_01.png و page_02.png.'
+                      : 'Renders pages at 2x resolution via OffscreenCanvas. Single-page documents download directly as high-res PNG, while multi-page documents are automatically packaged into a structured ZIP archive.'}
+                  </li>
+                </ul>
               </div>
 
               <div className="space-y-3 pt-1">
                 <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                  {lang === 'ar' ? 'الأمان القانوني للمستندات الحساسة' : 'Legal & Corporate Compliance'}
+                  {lang === 'ar' ? 'الامتثال القانوني والخصوصية المصرفية' : 'Legal & Corporate Compliance'}
                 </h2>
                 <p>
                   {lang === 'ar'
-                    ? 'المستندات القانونية مثل العقود، كشوف الحسابات المصرفية، الفواتير المالية، والهويات الشخصية تحتوي على بيانات شديدة الحساسية. نظراً لأن OmniShift يعمل بالكامل على جهاز المستخدم، فهو متوافق بطبيعته مع أعلى معايير الخصوصية مثل GDPR و HIPAA لأن بياناتك لا تخرج من حدود متصفحك أبداً.'
-                    : 'Sensitive documents like contracts, medical records, and bank statements should never be exposed to public web converters. OmniShift is architecturally compliant with GDPR and enterprise policies because data never leaves the client boundary.'}
+                    ? 'المستندات الحساسة مثل العقود، الفواتير الضريبية، السجلات الطبية، وكشوف الحسابات المصرفية تظل آمنة 100% لأن معالجتها تتم حصرياً داخل متصفحك دون إرسال أي بايت عبر الإنترنت.'
+                    : 'Contracts, medical charts, and financial records remain 100% sovereign because processing executes exclusively within your local browser sandbox.'}
                 </p>
+              </div>
+            </article>
+          )}
+
+          {/* ARTICLE 4b: Combine / Merge Engine */}
+          {activeDoc === 'combine' && (
+            <article className={cn('space-y-5', 'text-sm', 'text-[var(--text-muted)]', 'leading-relaxed')}>
+              <div>
+                <h1 className={cn('text-2xl sm:text-3xl', 'font-bold', 'tracking-tight', 'text-[var(--text-primary)]')}>
+                  {lang === 'ar' ? 'محرك دمج وتجميع الملفات (Combine / Merge)' : 'Universal Combine & Merge Engine'}
+                </h1>
+                <p className="mt-3 text-base text-[var(--text-muted)]">
+                  {lang === 'ar'
+                    ? 'نظام دمج وتجميع ذكي مبني على مكتبة pdf-lib في الذاكرة، يتيح دمج ملفات الـ PDF والصور في مستند PDF واحد موحد وفوري.'
+                    : 'A zero-copy document synthesizer built on client-side pdf-lib, consolidating PDFs and images into a single unified PDF.'}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <h2 className="text-base font-semibold text-[var(--text-primary)]">
+                  {lang === 'ar' ? 'السيناريوهات والحالات المدعومة' : 'Supported Combine Modes'}
+                </h2>
+                <ul className="list-disc pl-5 rtl:pr-5 rtl:pl-0 space-y-2.5">
+                  <li>
+                    <strong className="text-[var(--text-primary)]">
+                      {lang === 'ar' ? 'دمج ملفات PDF متعددة (PDF Merge):' : 'Multi-PDF Merge:'}
+                    </strong>{' '}
+                    {lang === 'ar'
+                      ? 'دمج ملفين أو أكثر من نوع PDF مع الحفاظ التام على الخطوط المتجهة، الروابط، وفهارس الصفحات بالترتيب.'
+                      : 'Concatenates two or more PDF streams into a master document while preserving vector fonts and page indices.'}
+                  </li>
+                  <li>
+                    <strong className="text-[var(--text-primary)]">
+                      {lang === 'ar' ? 'تجميع الصور في ملف PDF (Images to PDF):' : 'Images to Multi-Page PDF:'}
+                    </strong>{' '}
+                    {lang === 'ar'
+                      ? 'تجميع أي عدد من الصور (PNG, JPG, WebP, AVIF, SVG) وتضمين كل صورة في صفحة مستقلة متناسقة الأبعاد داخل ملف PDF واحد.'
+                      : 'Embeds any sequence of image files into dedicated, proportional PDF pages in a single consolidated document.'}
+                  </li>
+                  <li>
+                    <strong className="text-[var(--text-primary)]">
+                      {lang === 'ar' ? 'الدمج الهجين (خلط PDF مع صور):' : 'Hybrid Mixed Merge (PDF + Images):'}
+                    </strong>{' '}
+                    {lang === 'ar'
+                      ? 'إذا رفعت ملفات PDF وصور في نفس الوقت، يقوم المحرك بدمجها جميعاً بالترتيب: ينسخ صفحات كل PDF ويرسم كل صورة في صفحة جديدة لينتج مستنداً موحداً شاملاً.'
+                      : 'Seamlessly merges mixtures of PDFs and images in order, rendering each image as a page and appending existing PDF page streams.'}
+                  </li>
+                </ul>
+              </div>
+
+              <div className="space-y-3 pt-1">
+                <h2 className="text-base font-semibold text-[var(--text-primary)]">
+                  {lang === 'ar' ? 'معالجة الحالات الخاصة وحماية النظام (Edge-Case Guard)' : 'Edge-Case Protection & Fault Tolerance'}
+                </h2>
+                <ul className="list-disc pl-5 rtl:pr-5 rtl:pl-0 space-y-2">
+                  <li>
+                    <strong className="text-[var(--text-primary)]">
+                      {lang === 'ar' ? 'التحويل التلقائي للوضع المناسب:' : 'Auto-Mode Switching:'}
+                    </strong>{' '}
+                    {lang === 'ar'
+                      ? 'عند سحب ملفات من نوعين مختلفين (مثل صورة ومستند PDF معاً)، يتحول النظام تلقائياً لوضع الدمج "دمج الملفات" دون الحاجة لتغيير التبويب يدوياً.'
+                      : 'Dragging mixed file types automatically activates Combine mode without manual tab navigation.'}
+                  </li>
+                  <li>
+                    <strong className="text-[var(--text-primary)]">
+                      {lang === 'ar' ? 'فلترة الملفات غير المدعومة بأمان:' : 'Non-Document File Filtering:'}
+                    </strong>{' '}
+                    {lang === 'ar'
+                      ? 'إذا تم إسقاط ملف غير مدعوم في وضع الدمج (مثل فيديو MP4 أو ملف صوتي)، يستبعده النظام فوراً ويعرض شريط تنبيه ودود للمستخدم مع الاحتفاظ بالملفات الصالحة للدمج دون أي انهيار.'
+                      : 'Unsupported files (such as video or audio) in Combine mode are safely filtered out with an informative notice banner, preventing worker stalls.'}
+                  </li>
+                  <li>
+                    <strong className="text-[var(--text-primary)]">
+                      {lang === 'ar' ? 'حماية المستندات الفارغة والتالفة:' : 'Empty Stream Protection:'}
+                    </strong>{' '}
+                    {lang === 'ar'
+                      ? 'يفحص المحرك المستند النهائي قبل الحفظ للتأكد من احتوائه على صفحات صالحة، مانعاً تصدير ملفات تالفة أو فارغة.'
+                      : 'Ensures output documents contain valid pages before serialization, preventing corrupt or 0-page output files.'}
+                  </li>
+                </ul>
               </div>
             </article>
           )}
@@ -727,6 +830,30 @@ export const GuidePage = memo(function GuidePage({ onBackToApp }) {
                     {lang === 'ar'
                       ? 'مطلقاً. جميع الكائنات المؤقتة تعيش فقط في الـ Heap الخاص بتبويب المتصفح المفتوح. بمجرد إغلاق التبويب أو النقر على "تحويل ملف آخر" أو زر مسح الذاكرة، يتم مسح كل البايتات واستدعاء Garbage Collector لتفريغ الذاكرة فوراً وبشكل نهائي.'
                       : 'Never. Data exists solely in ephemeral memory buffers tied to the current browser tab. Closing the tab or clicking Clear immediately purges all allocated memory.'}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                    <span className="text-[#FF5A1F] font-mono mr-1.5 rtl:ml-1.5">Q.</span>
+                    {lang === 'ar' ? 'كيف يعمل تحويل PDF إلى صفحات كـ PNG أو نص Plain Text؟' : 'How does PDF to PNG Pages and Plain Text conversion work?'}
+                  </h3>
+                  <p className="text-xs text-[var(--text-muted)] leading-relaxed pl-5 rtl:pr-5 rtl:pl-0">
+                    {lang === 'ar'
+                      ? 'يقوم محرك PDF برسم كل صفحة بدقة 2x عالية الوضوح. إذا كان المستند صفحة واحدة يتم تنزيل صورة .png مباشرة، وإذا كان متعدد الصفحات يتم حزم جميع الصفحات آلياً داخل ملف مضغوط .zip عالي السرعة. أما خيار Plain Text فيستخرج كامل المحتوى النصي مع الحفاظ على فواصل الأسطر وأرقام الصفحات.'
+                      : 'The PDF engine renders pages via OffscreenCanvas at 2x resolution. Single-page PDFs yield a direct .png file, while multi-page PDFs are bundled into a .zip archive. Plain Text extracts all text layout tokens with page markers into clean .txt format.'}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                    <span className="text-[#FF5A1F] font-mono mr-1.5 rtl:ml-1.5">Q.</span>
+                    {lang === 'ar' ? 'ماذا يحدث إذا قمت برفع خليط من الصور وملفات PDF أو ملف فيديو في وضع الدمج؟' : 'What happens when mixing PDFs with images or uploading unsupported files in Combine mode?'}
+                  </h3>
+                  <p className="text-xs text-[var(--text-muted)] leading-relaxed pl-5 rtl:pr-5 rtl:pl-0">
+                    {lang === 'ar'
+                      ? 'يتعامل النظام بذكاء تام: إذا أسقطت صوراً ومستندات PDF معاً، يتم دمجها في مستند PDF واحد موحد بالترتيب. وإذا احتوت الدفعة على ملف غير مدعوم (مثل فيديو أو ملف صوتي)، يستبعده النظام تلقائياً ويعرض شريط تنبيه واضح مع متابعة دمج الملفات الصالحة دون أي خطأ أو تجميد.'
+                      : 'OmniShift is built with intelligent fault tolerance: mixing PDFs and images stitches them in order into a unified PDF. If an unsupported file (like video or audio) is included, it is safely excluded with a user notice banner while valid files are merged seamlessly.'}
                   </p>
                 </div>
               </div>

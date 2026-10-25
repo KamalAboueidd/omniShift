@@ -122,7 +122,7 @@ class WorkerPool {
 
     // High-Resolution & Heavy task throttling: Process heavy tasks sequentially to prevent browser tab OOM
     const taskIndex = this.taskQueue.findIndex((t) => {
-      const isTaskHeavy = (t.file && t.file.size > 15 * 1024 * 1024) || t.type === 'TRANSMUTE_PDF_MERGE';
+      const isTaskHeavy = (t.file && t.file.size > 15 * 1024 * 1024) || t.type === 'TRANSMUTE_PDF_MERGE' || t.type === 'TRANSMUTE_IMAGES_COMBINE_PDF';
       if (isTaskHeavy && this.heavyTaskActive) {
         return false;
       }
@@ -133,7 +133,7 @@ class WorkerPool {
     const task = this.taskQueue.splice(taskIndex, 1)[0];
     if (!task) return;
 
-    const isThisTaskHeavy = (task.file && task.file.size > 15 * 1024 * 1024) || task.type === 'TRANSMUTE_PDF_MERGE';
+    const isThisTaskHeavy = (task.file && task.file.size > 15 * 1024 * 1024) || task.type === 'TRANSMUTE_PDF_MERGE' || task.type === 'TRANSMUTE_IMAGES_COMBINE_PDF';
     if (isThisTaskHeavy) {
       this.heavyTaskActive = true;
     }
@@ -239,14 +239,17 @@ class WorkerPool {
     idleSlot.worker.addEventListener('error', errorHandler);
 
     try {
-      if (task.type === 'TRANSMUTE_PDF_MERGE') {
+      if (task.type === 'TRANSMUTE_COMBINE_FILES' || task.type === 'TRANSMUTE_PDF_MERGE' || task.type === 'TRANSMUTE_IMAGES_COMBINE_PDF') {
         const payload = {
-          type: 'TRANSMUTE_PDF_MERGE',
+          type: 'TRANSMUTE_COMBINE_FILES',
           id: task.id,
-          fileName: task.fileName || 'merged_document.pdf',
+          fileName: task.fileName || 'combined_document.pdf',
+          items: task.items,
           pdfBuffers: task.pdfBuffers,
+          imageBuffers: task.imageBuffers,
         };
-        idleSlot.worker.postMessage(payload, task.pdfBuffers);
+        const transferList = (task.items ? task.items.map((i) => i.buffer) : (task.pdfBuffers || task.imageBuffers || [])).filter(Boolean);
+        idleSlot.worker.postMessage(payload, transferList);
       } else {
         const fileBuffer = await task.file.arrayBuffer();
         const resolveSourceMime = (file) => {

@@ -206,6 +206,37 @@ export async function executeImageTransmute(fileBuffer, sourceMimeType, targetMi
       };
     }
 
+    // 2b. Export PDF Document (Single Image to PDF)
+    if (targetMimeType === 'application/pdf' || targetMimeType === 'pdf') {
+      const { PDFDocument } = await import('pdf-lib');
+      const pdfDoc = await PDFDocument.create();
+      const pngBlob = await offscreen.convertToBlob({ type: 'image/png' });
+      const pngBuffer = await pngBlob.arrayBuffer();
+      const embeddedImg = await pdfDoc.embedPng(pngBuffer);
+      const page = pdfDoc.addPage([embeddedImg.width, embeddedImg.height]);
+      page.drawImage(embeddedImg, {
+        x: 0,
+        y: 0,
+        width: embeddedImg.width,
+        height: embeddedImg.height,
+      });
+      const outputBytes = await pdfDoc.save({ useObjectStreams: true });
+      const outputBuffer = outputBytes.buffer.slice(
+        outputBytes.byteOffset,
+        outputBytes.byteOffset + outputBytes.byteLength
+      );
+      return {
+        outputBuffer,
+        outputMimeType: 'application/pdf',
+        extraMeta: {
+          width: targetWidth,
+          height: targetHeight,
+          megapixels,
+          format: 'PDF Document',
+        },
+      };
+    }
+
     // 3. Export WebP, AVIF, PNG, JPEG
     let mime = targetMimeType || 'image/webp';
     if (mime === 'jpg' || mime === 'jpeg') mime = 'image/jpeg';

@@ -60,41 +60,55 @@ export function useBatchTransmute(options = {}) {
     });
   }, []);
 
-  // PDF Merge Function
-  const mergePdfFiles = useCallback(async (pdfFiles) => {
-    if (!pdfFiles || pdfFiles.length < 2) return;
+  // Universal Multi-format Combine to PDF Function (PDFs, Images, and Mixed files)
+  const combineFiles = useCallback(async (files) => {
+    if (!files || files.length === 0) return [];
 
     setIsProcessing(true);
-    const taskId = `merge_${Date.now()}`;
-    const totalOriginalBytes = pdfFiles.reduce((acc, f) => acc + f.size, 0);
+    const taskId = `combine_${Date.now()}`;
+    const totalOriginalBytes = files.reduce((acc, f) => acc + f.size, 0);
 
-    const mergeItem = {
+    const areAllPdf = files.every((f) => (f.name || '').toLowerCase().endsWith('.pdf') || f.type === 'application/pdf');
+    const areAllImg = files.every((f) => f.type?.startsWith('image/') || /\.(png|jpe?g|webp|avif|heic|bmp|svg)$/i.test(f.name || ''));
+
+    const baseName = areAllPdf
+      ? `merged_${files.length}_documents.pdf`
+      : areAllImg
+      ? `combined_${files.length}_images.pdf`
+      : `combined_${files.length}_files.pdf`;
+
+    const combineItem = {
       id: taskId,
       file: null,
-      fileName: `merged_${pdfFiles.length}_documents.pdf`,
+      fileName: baseName,
       originalBytes: totalOriginalBytes,
       status: 'COMPUTING',
-      phase: `MERGING_${pdfFiles.length}_PDFS`,
+      phase: `COMBINING_${files.length}_ITEMS`,
       telemetry: null,
       downloadUrl: null,
-      outputFileName: `merged_${pdfFiles.length}_documents.pdf`,
+      outputFileName: baseName,
       blob: null,
     };
 
-    setQueue([mergeItem]);
-    onLogRef.current?.('KERNEL', `Initiating client-side merge for ${pdfFiles.length} PDF documents in Worker...`);
+    setQueue([combineItem]);
+    onLogRef.current?.('KERNEL', `Combining ${files.length} items into unified PDF in Worker...`);
 
     try {
-      const pdfBuffers = await Promise.all(pdfFiles.map((f) => f.arrayBuffer()));
+      const items = await Promise.all(
+        files.map(async (f) => ({
+          buffer: await f.arrayBuffer(),
+          name: f.name,
+          type: f.type,
+        }))
+      );
 
-      // Dispatch to worker pool
       const result = await workerPool.dispatchTask({
         id: taskId,
-        file: new File([], 'merged.pdf'),
+        file: new File([], 'combined.pdf'),
         targetMimeType: 'application/pdf',
-        pdfBuffers,
-        isMerge: true,
-        type: 'TRANSMUTE_PDF_MERGE',
+        items,
+        isCombine: true,
+        type: 'TRANSMUTE_COMBINE_FILES',
       });
 
       const { outputBuffer, outputMimeType, latencyMs, transmutedBytes, extraMeta, workerCoreId } = result;
@@ -102,7 +116,7 @@ export function useBatchTransmute(options = {}) {
       const url = memoryManager.create(blob, 'batch-result');
 
       const reductionPercentage = parseFloat(
-        (((transmutedBytes - totalOriginalBytes) / totalOriginalBytes) * 100).toFixed(1)
+        (((transmutedBytes - totalOriginalBytes) / Math.max(1, totalOriginalBytes)) * 100).toFixed(1)
       );
 
       const throughputMbps = parseFloat(
@@ -111,8 +125,8 @@ export function useBatchTransmute(options = {}) {
 
       const telemetry = {
         id: taskId,
-        fileName: mergeItem.fileName,
-        sourceFormat: 'MULTI-PDF',
+        fileName: combineItem.fileName,
+        sourceFormat: areAllPdf ? 'MULTI-PDF' : areAllImg ? 'MULTI-IMAGE' : 'MIXED-FILES',
         targetFormat: 'PDF',
         originalBytes: totalOriginalBytes,
         transmutedBytes,
@@ -124,8 +138,8 @@ export function useBatchTransmute(options = {}) {
         extraMeta,
       };
 
-      const readyMergedItem = {
-        ...mergeItem,
+      const readyItem = {
+        ...combineItem,
         status: 'READY',
         phase: 'READY',
         telemetry,
@@ -133,21 +147,20 @@ export function useBatchTransmute(options = {}) {
         blob,
       };
 
-      setQueue([readyMergedItem]);
-
+      setQueue([readyItem]);
       setIsProcessing(false);
-      onLogRef.current?.('INFO', `Successfully merged ${pdfFiles.length} PDFs (${extraMeta?.totalPages || 0} total pages) in ${latencyMs}ms.`);
-      return [readyMergedItem];
+      onLogRef.current?.('INFO', `Successfully combined ${files.length} items into PDF in ${latencyMs}ms.`);
+      return [readyItem];
     } catch (err) {
       setIsProcessing(false);
       setQueue([
         {
-          ...mergeItem,
+          ...combineItem,
           status: 'FAILED',
           phase: err.message,
         },
       ]);
-      onLogRef.current?.('KERNEL', `PDF merge failed: ${err.message}`);
+      onLogRef.current?.('KERNEL', `Combine failed: ${err.message}`);
       return [];
     }
   }, []);
@@ -275,13 +288,16 @@ export function useBatchTransmute(options = {}) {
           extraMeta,
         };
 
+        const actualExt = outputMimeType === 'application/zip' ? 'zip' : (outputMimeType === 'text/plain' ? 'txt' : targetExt);
+        const resolvedOutName = `${rawName}.${actualExt}`;
+
         const readyItem = {
           ...item,
           status: 'READY',
           phase: 'READY',
           telemetry,
           downloadUrl: url,
-          outputFileName: outName,
+          outputFileName: resolvedOutName,
           blob,
         };
 
@@ -419,7 +435,9 @@ export function useBatchTransmute(options = {}) {
     enqueueFiles,
     clearQueue,
     downloadIndividual,
-    mergePdfFiles,
+    combineFiles,
+    mergePdfFiles: combineFiles,
+    combineImagesFiles: combineFiles,
     retransmuteItem,
   };
 }

@@ -11,46 +11,36 @@ export async function localFallbackTransmute(task) {
   const startTime = performance.now();
   const { id, file, targetMimeType = 'image/webp', fileName = file?.name || 'file', pdfBuffers, type } = task;
 
-  // 1. PDF Merge
-  if (type === 'TRANSMUTE_PDF_MERGE' || (pdfBuffers && pdfBuffers.length > 0)) {
-    const buffers = pdfBuffers || [];
-    const { PDFDocument } = await import('pdf-lib');
-    const mergedDoc = await PDFDocument.create();
-    let totalPages = 0;
-
-    for (const buf of buffers) {
-      try {
-        const doc = await PDFDocument.load(buf, { ignoreEncryption: true });
-        const pageIndices = doc.getPageIndices();
-        const copiedPages = await mergedDoc.copyPages(doc, pageIndices);
-        for (const p of copiedPages) {
-          mergedDoc.addPage(p);
-          totalPages += 1;
-        }
-      } catch (err) {
-        console.warn('PDF page merge warning:', err);
-      }
+  // 1. Universal Combine / Merge to PDF Fallback (PDFs, Images, and Mixed files)
+  if (
+    type === 'TRANSMUTE_COMBINE_FILES' ||
+    type === 'TRANSMUTE_PDF_MERGE' ||
+    type === 'TRANSMUTE_IMAGES_COMBINE_PDF' ||
+    (task.items && task.items.length > 0)
+  ) {
+    const { combineMixedFilesToPdf } = await import('../workers/engines/pdfEngine');
+    let items = task.items;
+    if (!items) {
+      const bufs = task.pdfBuffers || task.imageBuffers || [];
+      items = bufs.map((b) => ({ buffer: b }));
     }
-
-    const mergedBytes = await mergedDoc.save({ useObjectStreams: true });
-    const outputBuffer = mergedBytes.buffer.slice(
-      mergedBytes.byteOffset,
-      mergedBytes.byteOffset + mergedBytes.byteLength
+    const { outputBuffer, outputMimeType, extraMeta } = await combineMixedFilesToPdf(items);
+    const totalOriginalBytes = items.reduce(
+      (acc, item) => acc + (item.buffer?.byteLength || item.byteLength || 0),
+      0
     );
-
-    const totalOriginalBytes = buffers.reduce((acc, b) => acc + (b.byteLength || 0), 0);
     const latencyMs = Math.max(1, Math.round(performance.now() - startTime));
 
     return {
       type: 'TRANSMUTE_SUCCESS',
       id,
-      fileName: fileName || 'merged_document.pdf',
+      fileName: fileName || 'combined_document.pdf',
       outputBuffer,
-      outputMimeType: 'application/pdf',
+      outputMimeType,
       latencyMs,
       originalBytes: totalOriginalBytes,
       transmutedBytes: outputBuffer.byteLength,
-      extraMeta: { totalPages, mergeEngine: 'LocalMainThreadFallback' },
+      extraMeta: { ...extraMeta, engine: 'LocalMainThreadFallback' },
       workerCoreId: 'main-thread-fallback',
     };
   }

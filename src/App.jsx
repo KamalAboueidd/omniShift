@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { AlertTriangle, X } from 'lucide-react';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { TransmuteDropzone } from './components/TransmuteDropzone';
@@ -21,6 +22,7 @@ export const App = () => {
   const [currentView, setCurrentView] = useState('studio'); // 'studio' | 'guide'
   const [mode, setMode] = useState('image'); // 'image' | 'pdf' | 'data'
   const [targetMimeType, setTargetMimeType] = useState('image/webp');
+  const [validationNotice, setValidationNotice] = useState(null);
 
   // Auto-Download setting (persisted in localStorage)
   const [autoDownload, setAutoDownload] = useState(() => {
@@ -49,7 +51,7 @@ export const App = () => {
     enqueueFiles,
     clearQueue,
     downloadIndividual,
-    mergePdfFiles,
+    combineFiles,
   } = useBatchTransmute();
 
   const handleToggleAutoDownload = useCallback((enabled) => {
@@ -63,30 +65,19 @@ export const App = () => {
 
   // Classify active input context dynamically
   const activeFileType = useMemo(() => {
-    const rawFiles = workbenchFiles.map((f) => f.file).filter(Boolean);
-    const pdfFiles = rawFiles.filter((f) => f.name?.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf');
-    if (pdfFiles.length >= 2) return 'multiple-pdf';
+    if (mode === 'combine') return 'combine';
 
+    const rawFiles = workbenchFiles.map((f) => f.file).filter(Boolean);
     if (rawFiles.length > 0) {
       const first = rawFiles[0];
       const lower = first.name?.toLowerCase() || '';
-      if (
-        lower.endsWith('.pptx') ||
-        lower.endsWith('.ppt') ||
-        first.type?.includes('presentation') ||
-        first.type?.includes('powerpoint')
-      ) {
-        return 'presentation';
-      }
-      if (lower.endsWith('.json') || lower.endsWith('.csv') || first.type?.includes('json') || first.type?.includes('csv')) {
-        return 'data';
-      }
       if (lower.endsWith('.svg') || first.type?.includes('svg')) {
         return 'svg';
       }
       if (lower.endsWith('.pdf') || first.type === 'application/pdf') {
         return 'pdf';
       }
+      return 'image';
     }
     return mode;
   }, [workbenchFiles, mode]);
@@ -104,55 +95,59 @@ export const App = () => {
       const newFiles = Array.from(incomingFiles);
       setWasAutoDownloaded(false);
 
-      // Adjust default target MIME and active mode automatically based on file type
-      const first = newFiles[0];
-      const lower = first.name?.toLowerCase() || '';
-      let nextMime;
+      let effectiveFiles = newFiles;
+      let nextMime = 'image/webp';
 
-      if (
-        lower.endsWith('.pptx') ||
-        lower.endsWith('.ppt') ||
-        first.type?.includes('presentation') ||
-        first.type?.includes('powerpoint')
-      ) {
-        nextMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-        setMode('presentation');
-      } else if (lower.endsWith('.json')) {
-        nextMime = 'text/csv';
-        setMode('data');
-      } else if (lower.endsWith('.csv')) {
-        nextMime = 'application/json';
-        setMode('data');
-      } else if (lower.endsWith('.svg')) {
-        nextMime = 'image/png';
-        setMode('svg');
-      } else if (lower.endsWith('.pdf') || first.type === 'application/pdf') {
-        nextMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      const hasPdf = newFiles.some((f) => (f.name || '').toLowerCase().endsWith('.pdf') || f.type === 'application/pdf');
+      const hasImage = newFiles.some((f) => f.type?.startsWith('image/') || /\.(png|jpe?g|webp|avif|heic|bmp|gif|svg|ico)$/i.test(f.name || ''));
+
+      // If user dropped BOTH PDFs and Images together, or is in combine mode:
+      if (mode === 'combine' || (hasPdf && hasImage)) {
+        setMode('combine');
+        nextMime = 'application/pdf';
+
+        // Filter out any non-PDF, non-image files (e.g. video, audio, exe, archives)
+        const valid = [];
+        const invalidNames = [];
+        for (const f of newFiles) {
+          const name = (f.name || '').toLowerCase();
+          const isP = name.endsWith('.pdf') || f.type === 'application/pdf';
+          const isI = f.type?.startsWith('image/') || /\.(png|jpe?g|webp|avif|heic|bmp|gif|svg|ico)$/i.test(name);
+          if (isP || isI) {
+            valid.push(f);
+          } else {
+            invalidNames.push(f.name || 'file');
+          }
+        }
+
+        if (invalidNames.length > 0) {
+          setValidationNotice(t('combineUnsupportedNotice', { names: invalidNames.join(', ') }));
+        } else {
+          setValidationNotice(null);
+        }
+
+        if (valid.length === 0) {
+          setValidationNotice(t('combineNoValidFiles'));
+          return;
+        }
+
+        effectiveFiles = valid;
+      } else if (hasPdf) {
         setMode('pdf');
-      } else if (lower.endsWith('.webp')) {
-        nextMime = 'image/webp';
-        setMode('image');
-      } else if (lower.endsWith('.png')) {
-        nextMime = 'image/webp';
-        setMode('image');
-      } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
-        nextMime = 'image/webp';
-        setMode('image');
-      } else if (lower.endsWith('.bmp')) {
-        nextMime = 'image/webp';
-        setMode('image');
-      } else if (lower.endsWith('.ico')) {
-        nextMime = 'image/png';
-        setMode('image');
+        nextMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        setValidationNotice(null);
       } else {
-        nextMime = 'image/webp';
         setMode('image');
+        const first = newFiles[0];
+        const lower = (first.name || '').toLowerCase();
+        nextMime = lower.endsWith('.svg') ? 'image/png' : 'image/webp';
+        setValidationNotice(null);
       }
 
       setTargetMimeType(nextMime);
 
       // Ingestion into client memory
-      const mappedItems = newFiles.map((file) => ({
+      const mappedItems = effectiveFiles.map((file) => ({
         id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         file,
         name: file.name,
@@ -223,6 +218,7 @@ export const App = () => {
     setWorkbenchFiles([]);
     setConversionState('staged');
     setWasAutoDownloaded(false);
+    setValidationNotice(null);
     clearQueue();
   }, [clearQueue]);
 
@@ -300,16 +296,19 @@ export const App = () => {
         (f) => f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf'
       );
 
-      // Original smooth pacing (~13.5s) with background worker resilience
-      const targetDuration = 13500;
+      // Fast, snappy pacing (~600ms) with background worker resilience
+      const targetDuration = 600;
       const startTime = Date.now();
 
       // 1. Kick off actual client-side transmutation task in Web Workers with optimal compression quality
-      const conversionPromise = (isMultiPdf && targetMimeType === 'application/pdf')
-        ? mergePdfFiles(rawFiles)
-        : enqueueFiles(rawFiles, targetMimeType, 0.80);
+      let conversionPromise;
+      if (mode === 'combine') {
+        conversionPromise = combineFiles(rawFiles);
+      } else {
+        conversionPromise = enqueueFiles(rawFiles, targetMimeType, 0.85);
+      }
 
-      // 2. Animate progress steadily at ~13.5s pacing, continuing smoothly across background tabs
+      // 2. Animate progress steadily at ~600ms pacing, continuing smoothly across background tabs
       const animationPromise = new Promise((resolve) => {
         let isDone = false;
         let conversionResolved = false;
@@ -332,7 +331,7 @@ export const App = () => {
           setProcessingProgress(current);
           updateStep(current);
 
-          // Only finish when full duration (~13.5s) has elapsed AND conversion is ready
+          // Only finish when target duration has elapsed AND conversion is ready
           if (current >= 100 && conversionResolved) {
             isDone = true;
             resolve();
@@ -370,7 +369,7 @@ export const App = () => {
 
       const isHidden = typeof document !== 'undefined' && document.hidden;
       if (!isHidden) {
-        await new Promise((r) => setTimeout(r, 120)); // Brief pause at 100% when visible
+        await new Promise((r) => setTimeout(r, 80)); // Brief micro-pause at 100%
       }
 
       const validResults = (results || []).filter(Boolean);
@@ -396,7 +395,7 @@ export const App = () => {
           if (isHidden) {
             runDownload();
           } else {
-            setTimeout(runDownload, 100);
+            setTimeout(runDownload, 80);
           }
         }
       } else {
@@ -410,7 +409,7 @@ export const App = () => {
       if (cleanupVisibility) cleanupVisibility();
       setIsProcessing(false);
     }
-  }, [workbenchFiles, targetMimeType, autoDownload, enqueueFiles, mergePdfFiles, handleDownloadAllZip]);
+  }, [workbenchFiles, targetMimeType, autoDownload, enqueueFiles, combineFiles, handleDownloadAllZip, mode]);
 
   const handleTriggerPdfMerge = useCallback(() => {
     if (workbenchFiles.length >= 2) {
@@ -505,6 +504,23 @@ export const App = () => {
 
             {/* 3. Primary Workspace Area */}
             <div className="mt-2">
+              {/* Validation & Unsupported File Notice */}
+              {validationNotice && (
+                <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center justify-between gap-2 shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+                    <span>{validationNotice}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setValidationNotice(null)}
+                    className="p-1 hover:bg-amber-500/20 rounded-md transition-colors text-amber-200 cursor-pointer"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+
               {/* Step 1: Mode Switcher & Dropzone (when no files staged and not ingesting) */}
               {!hasFiles && !isIngestingFiles && (
                 <>
@@ -528,7 +544,7 @@ export const App = () => {
                         type="button"
                         onClick={() => {
                           setMode('pdf');
-                          setTargetMimeType('application/pdf');
+                          setTargetMimeType('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
                         }}
                         className={`px-3 py-1 sm:px-3.5 sm:py-1.5 text-[11px] sm:text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                           mode === 'pdf'
@@ -541,30 +557,16 @@ export const App = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          setMode('presentation');
-                          setTargetMimeType('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+                          setMode('combine');
+                          setTargetMimeType('application/pdf');
                         }}
                         className={`px-3 py-1 sm:px-3.5 sm:py-1.5 text-[11px] sm:text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                          mode === 'presentation'
+                          mode === 'combine'
                             ? 'bg-[#FF5A1F] text-black shadow-xs font-semibold'
                             : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-2)] font-medium'
                         }`}
                       >
-                        {t('modePresentation') || 'PowerPoint'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMode('data');
-                          setTargetMimeType('text/csv');
-                        }}
-                        className={`px-3 py-1 sm:px-3.5 sm:py-1.5 text-[11px] sm:text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                          mode === 'data'
-                            ? 'bg-[#FF5A1F] text-black shadow-xs font-semibold'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-2)] font-medium'
-                        }`}
-                      >
-                        {t('modeData')}
+                        {t('modeCombine')}
                       </button>
                     </div>
                   </div>
@@ -582,7 +584,7 @@ export const App = () => {
                   <SamplePresets
                     disabled={isProcessing}
                     activeMode={mode}
-                    onSelectSample={(sampleFile) => handleFilesSelected([sampleFile])}
+                    onSelectSample={(sampleFiles) => handleFilesSelected(Array.isArray(sampleFiles) ? sampleFiles : [sampleFiles])}
                   />
                 </>
               )}

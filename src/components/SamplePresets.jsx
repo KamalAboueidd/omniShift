@@ -1,6 +1,7 @@
 import { memo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { cn } from "../lib/utils";
 
 export const SamplePresets = memo(function SamplePresets({ 
   onSelectSample, 
@@ -120,49 +121,86 @@ export const SamplePresets = memo(function SamplePresets({
     }
   };
 
-  // Preset 3: JSON Dataset
-  const handleDenseJson = () => {
+  // Preset 3: 2 Sample PDFs for Combine/Merge Test
+  const handleSampleCombine = async () => {
     if (disabled || generatingPreset) return;
-    setGeneratingPreset('json');
+    setGeneratingPreset('combine');
     try {
-      const rowCount = 200;
-      const records = [];
-      const departments = ['Core Graphics', 'WebAssembly', 'Engine Runtime', 'Data Processing'];
-      const statuses = ['PROCESSED', 'TRANSFERRED', 'QUANTIZED'];
+      const { PDFDocument, rgb, StandardFonts } = await import('pdf-lib');
 
-      for (let i = 1; i <= rowCount; i++) {
-        records.push({
-          id: `REC-${1000 + i}`,
-          department: departments[i % departments.length],
-          status: statuses[i % statuses.length],
-          latency_ms: 12 + (i % 18),
-          memory_kb: (8.4 + (i % 20) * 0.2).toFixed(1),
-          timestamp: Date.now() + i * 1000,
-        });
+      // Doc 1
+      const doc1 = await PDFDocument.create();
+      const font1 = await doc1.embedFont(StandardFonts.HelveticaBold);
+      const page1 = doc1.addPage([595.28, 841.89]);
+      page1.drawText('OMNISHIFT DOCUMENT PART 1', { x: 50, y: 750, size: 20, font: font1, color: rgb(1, 0.35, 0.12) });
+      page1.drawText('This is the first document stream prepared for in-memory merging.', { x: 50, y: 710, size: 12, color: rgb(0.2, 0.2, 0.2) });
+      const bytes1 = await doc1.save();
+      const file1 = new File([bytes1], 'sample_part1.pdf', { type: 'application/pdf' });
+
+      // Doc 2
+      const doc2 = await PDFDocument.create();
+      const font2 = await doc2.embedFont(StandardFonts.HelveticaBold);
+      const page2 = doc2.addPage([595.28, 841.89]);
+      page2.drawText('OMNISHIFT DOCUMENT PART 2', { x: 50, y: 750, size: 20, font: font2, color: rgb(0.1, 0.6, 0.3) });
+      page2.drawText('This is the second document stream to be appended in volatile memory.', { x: 50, y: 710, size: 12, color: rgb(0.2, 0.2, 0.2) });
+      const bytes2 = await doc2.save();
+      const file2 = new File([bytes2], 'sample_part2.pdf', { type: 'application/pdf' });
+
+      onSelectSample([file1, file2]);
+    } finally {
+      setGeneratingPreset(null);
+    }
+  // Preset 4: Mixed PDF + PNG Image for Mixed Combine Test
+  const handleMixedCombine = async () => {
+    if (disabled || generatingPreset) return;
+    setGeneratingPreset('mixed');
+    try {
+      const { PDFDocument, rgb, StandardFonts } = await import('pdf-lib');
+
+      // Sample PDF
+      const doc = await PDFDocument.create();
+      const font = await doc.embedFont(StandardFonts.HelveticaBold);
+      const page = doc.addPage([595.28, 841.89]);
+      page.drawText('OMNISHIFT DOCUMENT STREAM', { x: 50, y: 750, size: 20, font, color: rgb(1, 0.35, 0.12) });
+      page.drawText('Page 1 of combined PDF document.', { x: 50, y: 710, size: 12, color: rgb(0.2, 0.2, 0.2) });
+      const pdfBytes = await doc.save();
+      const pdfFile = new File([pdfBytes], 'report_part1.pdf', { type: 'application/pdf' });
+
+      // Sample Image
+      const canvas = document.createElement('canvas');
+      canvas.width = 1200;
+      canvas.height = 800;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, 1200, 800);
+        ctx.fillStyle = '#FF5A1F';
+        ctx.font = 'bold 44px sans-serif';
+        ctx.fillText('OMNISHIFT GRAPHIC SPECIMEN', 80, 250);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '28px monospace';
+        ctx.fillText('Embedded image page in unified PDF stream', 80, 320);
       }
+      const imgBlob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+      const imgFile = new File([imgBlob], 'chart_specimen.png', { type: 'image/png' });
 
-      const jsonStr = JSON.stringify(records, null, 2);
-      const blob = new Blob([jsonStr], { type: 'application/json' });
-      const file = new File([blob], 'telemetry_dataset.json', {
-        type: 'application/json',
-      });
-      onSelectSample(file);
+      onSelectSample([pdfFile, imgFile]);
     } finally {
       setGeneratingPreset(null);
     }
   };
 
   return (
-    <div className="mt-4 flex items-center justify-center gap-2 text-xs text-[var(--text-muted)] select-none">
+    <div className={cn('mt-4', 'flex', 'flex-wrap', 'items-center', 'justify-center', 'gap-2', 'text-xs', 'text-[var(--text-muted)]', 'select-none')}>
       <span>{t('needTestFile')}</span>
       {activeMode === 'image' && (
         <button
           type="button"
           disabled={disabled || Boolean(generatingPreset)}
           onClick={handle4kImage}
-          className="text-[#FF5A1F] hover:underline underline-offset-4 font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-1 cursor-pointer"
+          className={cn('text-[#FF5A1F]', 'hover:underline', 'underline-offset-4', 'font-medium', 'transition-colors', 'disabled:opacity-50', 'inline-flex', 'items-center', 'gap-1', 'cursor-pointer')}
         >
-          {generatingPreset === 'image' && <Loader2 className="h-3 w-3 animate-spin text-[#FF5A1F]" />}
+          {generatingPreset === 'image' && <Loader2 className={cn('h-3', 'w-3', 'animate-spin', 'text-[#FF5A1F]')} />}
           <span>{t('trySampleImage')}</span>
         </button>
       )}
@@ -172,24 +210,36 @@ export const SamplePresets = memo(function SamplePresets({
           type="button"
           disabled={disabled || Boolean(generatingPreset)}
           onClick={handleMultiPagePdf}
-          className="text-[#FF5A1F] hover:underline underline-offset-4 font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-1 cursor-pointer"
+          className={cn('text-[#FF5A1F]', 'hover:underline', 'underline-offset-4', 'font-medium', 'transition-colors', 'disabled:opacity-50', 'inline-flex', 'items-center', 'gap-1', 'cursor-pointer')}
         >
-          {generatingPreset === 'pdf' && <Loader2 className="h-3 w-3 animate-spin text-[#FF5A1F]" />}
+          {generatingPreset === 'pdf' && <Loader2 className={cn('h-3', 'w-3', 'animate-spin', 'text-[#FF5A1F]')} />}
           <span>{t('trySamplePdf')}</span>
         </button>
       )}
 
-      {activeMode === 'data' && (
-        <button
-          type="button"
-          disabled={disabled || Boolean(generatingPreset)}
-          onClick={handleDenseJson}
-          className="text-[#FF5A1F] hover:underline underline-offset-4 font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-1 cursor-pointer"
-        >
-          {generatingPreset === 'json' && <Loader2 className="h-3 w-3 animate-spin text-[#FF5A1F]" />}
-          <span>{t('trySampleData')}</span>
-        </button>
+      {activeMode === 'combine' && (
+        <>
+          <button
+            type="button"
+            disabled={disabled || Boolean(generatingPreset)}
+            onClick={handleSampleCombine}
+            className={cn('text-[#FF5A1F]', 'hover:underline', 'underline-offset-4', 'font-medium', 'transition-colors', 'disabled:opacity-50', 'inline-flex', 'items-center', 'gap-1', 'cursor-pointer')}
+          >
+            {generatingPreset === 'combine' && <Loader2 className={cn('h-3', 'w-3', 'animate-spin', 'text-[#FF5A1F]')} />}
+            <span>{t('trySampleCombine')}</span>
+          </button>
+          <span className="text-[var(--border-subtle)]">•</span>
+          <button
+            type="button"
+            disabled={disabled || Boolean(generatingPreset)}
+            onClick={handleMixedCombine}
+            className={cn('text-[#FF5A1F]', 'hover:underline', 'underline-offset-4', 'font-medium', 'transition-colors', 'disabled:opacity-50', 'inline-flex', 'items-center', 'gap-1', 'cursor-pointer')}
+          >
+            {generatingPreset === 'mixed' && <Loader2 className={cn('h-3', 'w-3', 'animate-spin', 'text-[#FF5A1F]')} />}
+            <span>{t('trySampleMixedCombine')}</span>
+          </button>
+        </>
       )}
     </div>
-  );
-});
+  )
+}});

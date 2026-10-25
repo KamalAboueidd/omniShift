@@ -1,6 +1,6 @@
 import { executeDataTransmute } from './engines/dataEngine';
 import { executeSvgTransmute } from './engines/svgEngine';
-import { mergePdfs, executePdfTransmute } from './engines/pdfEngine';
+import { mergePdfs, combineImagesToPdf, combineMixedFilesToPdf, executePdfTransmute } from './engines/pdfEngine';
 import { executeImageTransmute } from './engines/imageEngine';
 import { executePresentationTransmute } from './engines/presentationEngine';
 
@@ -25,20 +25,34 @@ self.onmessage = async (event) => {
   };
 
   try {
-    // 1. PDF Multi-file Merge Operation
-    if (task.type === 'TRANSMUTE_PDF_MERGE') {
-      postProgress('MERGING_PDF_STREAMS');
-      const { id, pdfBuffers, fileName } = task;
-      const totalOriginalBytes = pdfBuffers.reduce((sum, b) => sum + b.byteLength, 0);
+    // Universal Multi-format Combine / Merge to PDF Operation (Handles PDFs, Images, and Mixed files)
+    if (
+      task.type === 'TRANSMUTE_COMBINE_FILES' ||
+      task.type === 'TRANSMUTE_PDF_MERGE' ||
+      task.type === 'TRANSMUTE_IMAGES_COMBINE_PDF'
+    ) {
+      postProgress('COMBINING_STREAMS_TO_PDF');
+      const { id, items, pdfBuffers, imageBuffers, fileName } = task;
 
-      const { outputBuffer, outputMimeType, extraMeta } = await mergePdfs(pdfBuffers);
+      let fileItems = items;
+      if (!fileItems) {
+        const bufs = pdfBuffers || imageBuffers || [];
+        fileItems = bufs.map((b) => ({ buffer: b }));
+      }
+
+      const totalOriginalBytes = fileItems.reduce(
+        (sum, item) => sum + (item.buffer?.byteLength || item.byteLength || 0),
+        0
+      );
+
+      const { outputBuffer, outputMimeType, extraMeta } = await combineMixedFilesToPdf(fileItems);
       const endTime = performance.now();
       const latencyMs = Math.max(1, Math.round((endTime - startTime) * 10) / 10);
 
       const successMsg = {
         type: 'TRANSMUTE_SUCCESS',
         id,
-        fileName: fileName || 'merged_document.pdf',
+        fileName: fileName || 'combined_document.pdf',
         outputBuffer,
         outputMimeType,
         latencyMs,

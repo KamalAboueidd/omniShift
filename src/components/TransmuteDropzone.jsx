@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UploadCloud, FileText, FileSpreadsheet, Cpu, CheckCircle2, Presentation } from 'lucide-react';
+import { UploadCloud, FileText, Combine } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -72,30 +72,23 @@ export const TransmuteDropzone = memo(function TransmuteDropzone({
     image: {
       headline: t('dropHeadlineImage'),
       accept: '.png,.jpg,.jpeg,.webp,.avif,.heic,.svg,image/png,image/jpeg,image/webp,image/avif,image/svg+xml',
-      extensions: ['PNG', 'JPG', 'WEBP', 'AVIF', 'SVG'],
+      extensions: ['PNG', 'JPG', 'WEBP', 'AVIF', 'PDF'],
       subtitle: t('dropSubtitleImage'),
       Icon: UploadCloud,
     },
     pdf: {
       headline: t('dropHeadlinePdf'),
       accept: '.pdf,application/pdf',
-      extensions: [t('dropMultiPdfBadge')],
+      extensions: ['Word (.docx)', 'Plain Text (.txt)', 'Pages as PNG'],
       subtitle: t('dropSubtitlePdf'),
       Icon: FileText,
     },
-    data: {
-      headline: t('dropHeadlineData'),
-      accept: '.json,.csv,application/json,text/csv',
-      extensions: ['JSON', 'CSV'],
-      subtitle: t('dropSubtitleData'),
-      Icon: FileSpreadsheet,
-    },
-    presentation: {
-      headline: t('dropHeadlinePresentation') || 'Drop PowerPoint presentations to convert, or',
-      accept: '.pptx,.ppt,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint',
-      extensions: ['PPTX', 'PPT'],
-      subtitle: t('dropSubtitlePresentation') || 'Client-side Presentation Parser • Zero cloud egress',
-      Icon: Presentation,
+    combine: {
+      headline: t('dropHeadlineCombine'),
+      accept: '.pdf,.png,.jpg,.jpeg,.webp,.avif,application/pdf,image/*',
+      extensions: ['PDF + Images', 'Merge into 1 PDF'],
+      subtitle: t('dropSubtitleCombine'),
+      Icon: Combine,
     },
   };
 

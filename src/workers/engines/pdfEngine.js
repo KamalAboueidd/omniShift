@@ -1100,6 +1100,118 @@ export async function mergePdfs(pdfBuffers) {
 }
 
 /**
+ * Combines multiple image ArrayBuffers into a single unified PDF document.
+ */
+export async function combineImagesToPdf(imageBuffers) {
+  const items = imageBuffers.map((buf) => ({ buffer: buf, type: 'image/jpeg' }));
+  return await combineMixedFilesToPdf(items);
+}
+
+/**
+ * Master Unified Combine Engine:
+ * Combines any mixture of PDF documents and Images (PNG, JPG, WebP, AVIF, BMP, SVG)
+ * in their exact staged order into a single unified multi-page PDF document.
+ */
+export async function combineMixedFilesToPdf(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error('Combine requires at least 1 document or image.');
+  }
+
+  const masterDoc = await PDFDocument.create();
+  let totalPages = 0;
+  let pdfCount = 0;
+  let imageCount = 0;
+
+  for (const item of items) {
+    const buffer = item.buffer || item;
+    const name = (item.name || '').toLowerCase();
+    const type = (item.type || '').toLowerCase();
+
+    // Byte sniffing for PDF (%PDF signature: 0x25, 0x50, 0x44, 0x46)
+    const u8 = new Uint8Array(buffer);
+    const isPdf =
+      (u8.length >= 4 && u8[0] === 0x25 && u8[1] === 0x50 && u8[2] === 0x44 && u8[3] === 0x46) ||
+      type === 'application/pdf' ||
+      name.endsWith('.pdf');
+
+    if (isPdf) {
+      try {
+        const srcDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+        const pageIndices = srcDoc.getPageIndices();
+        const copiedPages = await masterDoc.copyPages(srcDoc, pageIndices);
+        copiedPages.forEach((p) => masterDoc.addPage(p));
+        totalPages += copiedPages.length;
+        pdfCount++;
+        continue;
+      } catch (pdfErr) {
+        console.warn('PDF stream ingest failed, attempting image fallback:', pdfErr);
+      }
+    }
+
+    // Otherwise treat as Image (JPG, PNG, WebP, AVIF, BMP, GIF, SVG)
+    let embeddedImg = null;
+    const isJpg = u8[0] === 0xff && u8[1] === 0xd8;
+    const isPng = u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4e && u8[3] === 0x47;
+
+    if (isJpg) {
+      try { embeddedImg = await masterDoc.embedJpg(buffer); } catch {}
+    } else if (isPng) {
+      try { embeddedImg = await masterDoc.embedPng(buffer); } catch {}
+    }
+
+    if (!embeddedImg) {
+      try {
+        const blob = new Blob([buffer]);
+        const bitmap = await createImageBitmap(blob);
+        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(bitmap, 0, 0);
+        const pngBlob = await canvas.convertToBlob({ type: 'image/png' });
+        const pngBytes = await pngBlob.arrayBuffer();
+        embeddedImg = await masterDoc.embedPng(pngBytes);
+        bitmap.close();
+      } catch (imgErr) {
+        console.error('Failed to embed image into PDF:', imgErr);
+      }
+    }
+
+    if (embeddedImg) {
+      const page = masterDoc.addPage([embeddedImg.width, embeddedImg.height]);
+      page.drawImage(embeddedImg, {
+        x: 0,
+        y: 0,
+        width: embeddedImg.width,
+        height: embeddedImg.height,
+      });
+      totalPages++;
+      imageCount++;
+    }
+  }
+
+  if (masterDoc.getPageCount() === 0) {
+    throw new Error('لم يتم العثور على صفحات أو صور صالحة لدمجها في مستند PDF. يُرجى اختيار ملفات PDF أو صور صالحة.');
+  }
+
+  const outputBytes = await masterDoc.save({ useObjectStreams: true });
+  const outputBuffer = outputBytes.buffer.slice(
+    outputBytes.byteOffset,
+    outputBytes.byteOffset + outputBytes.byteLength
+  );
+
+  return {
+    outputBuffer,
+    outputMimeType: 'application/pdf',
+    extraMeta: {
+      totalPages: masterDoc.getPageCount(),
+      combinedFiles: items.length,
+      pdfCount,
+      imageCount,
+      format: 'Combined PDF',
+    },
+  };
+}
+
+/**
  * Optimizes/linearizes a single PDF stream using pdf-lib.
  */
 export async function optimizePdf(fileBuffer) {
