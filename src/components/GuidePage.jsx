@@ -80,10 +80,10 @@ export const GuidePage = memo(function GuidePage({ onBackToApp }) {
       </div>
 
       {/* Main Layout: Left Sidebar + Right Content */}
-      <div className={cn('flex', 'flex-col', 'md:flex-row', 'gap-8', 'mt-6')}>
+      <div className={cn('flex', 'flex-col', 'md:flex-row', 'gap-8', 'mt-6', 'items-start')}>
         {/* Sidebar */}
-        <aside className={cn('w-full', 'md:w-64', 'shrink-0')}>
-          <div className={cn('sticky', 'top-20', 'space-y-6')}>
+        <aside className={cn('w-full', 'md:w-64', 'shrink-0', 'self-start')}>
+          <div className={cn('sticky', 'top-6', 'space-y-6')}>
             {docsNav.map((group) => (
               <div key={group.category} className="space-y-1.5">
                 <p className={cn('font-mono', 'text-[11px]', 'font-semibold', 'uppercase', 'tracking-wider', 'text-[var(--text-muted)]', 'px-2')}>
@@ -97,18 +97,22 @@ export const GuidePage = memo(function GuidePage({ onBackToApp }) {
                       <button
                         key={item.id}
                         type="button"
-                        onClick={() => setActiveDoc(item.id)}
-                        className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs transition-colors text-left rtl:text-right cursor-pointer bg-transparent border-none ${
+                        onClick={() => {
+                          setActiveDoc(item.id);
+                          window.scrollTo({ top: 0, behavior: 'instant' });
+                        }}
+                        className={cn(
+                          'w-full flex items-center justify-between px-2.5 py-1.5 text-xs rounded-md transition-colors text-left rtl:text-right cursor-pointer border-none',
                           isActive
-                            ? 'text-[#FF5A1F] font-semibold'
-                            : 'text-[var(--text-muted)] hover:text-[#FF5A1F]'
-                        }`}
+                            ? 'text-[#FF5A1F] bg-[#FF5A1F]/10 font-medium'
+                            : 'text-[var(--text-muted)] hover:text-[#FF5A1F] hover:bg-[var(--bg-surface-2)]/60 font-medium'
+                        )}
                       >
                         <div className={cn('flex', 'items-center', 'gap-2', 'truncate')}>
                           <Icon className={cn('h-3.5', 'w-3.5', 'shrink-0', isActive ? 'text-[#FF5A1F]' : 'opacity-70')} strokeWidth={1.5} />
                           <span className="truncate">{item.label}</span>
                         </div>
-                        {isActive && <ChevronRight className={cn('h-3', 'w-3', 'shrink-0', 'rtl:rotate-180')} />}
+                        <ChevronRight className={cn('h-3', 'w-3', 'shrink-0', 'rtl:rotate-180', 'transition-opacity', isActive ? 'opacity-100 text-[#FF5A1F]' : 'opacity-0')} />
                       </button>
                     );
                   })}

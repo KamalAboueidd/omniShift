@@ -7,6 +7,7 @@ import { SamplePresets } from './components/SamplePresets';
 import { StagedFilesWorkbench } from './components/StagedFilesWorkbench';
 import { GlobalDropOverlay } from './components/GlobalDropOverlay';
 import { GuidePage } from './components/GuidePage';
+import { NotFoundPage } from './components/NotFoundPage';
 import { Footer } from './components/Footer';
 import { useBatchTransmute } from './hooks/useBatchTransmute';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
@@ -17,9 +18,48 @@ import { createWorkerInterval } from './lib/workerTimer';
 
 const ACCEPT_ATTRIBUTE = '.png,.jpg,.jpeg,.webp,.avif,.heic,.pdf,.svg,.json,.csv,.pptx,.ppt,image/png,image/jpeg,image/webp,image/avif,application/pdf,image/svg+xml,application/json,text/csv,application/vnd.openxmlformats-officedocument.presentationml.presentation';
 
+const resolveViewFromLocation = () => {
+  try {
+    const path = (window.location.pathname || '').replace(/^\/+|\/+$/g, '').toLowerCase();
+    const hash = (window.location.hash || '').replace(/^#\/?|\/+$/g, '').toLowerCase();
+    const target = path || hash;
+    if (!target || target === 'studio') return 'studio';
+    if (target === 'guide' || target === 'docs') return 'guide';
+    return 'notfound';
+  } catch {
+    return 'studio';
+  }
+};
+
 export const App = () => {
   const { t } = useLanguage();
-  const [currentView, setCurrentView] = useState('studio'); // 'studio' | 'guide'
+  const [currentView, setCurrentView] = useState(resolveViewFromLocation); // 'studio' | 'guide' | 'notfound'
+
+  // Sync routing on browser Back / Forward buttons
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentView(resolveViewFromLocation());
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+    };
+  }, []);
+
+  const handleNavigate = useCallback((view) => {
+    setCurrentView(view);
+    try {
+      const targetPath = view === 'studio' ? '/' : `/${view}`;
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({ view }, '', targetPath);
+      }
+    } catch {
+      // ignore history errors
+    }
+  }, []);
+
   const [mode, setMode] = useState('image'); // 'image' | 'pdf' | 'data'
   const [targetMimeType, setTargetMimeType] = useState('image/webp');
   const [validationNotice, setValidationNotice] = useState(null);
@@ -472,14 +512,17 @@ export const App = () => {
       {/* 1. Header with Studio & Guide Navigation */}
       <Header 
         currentView={currentView}
-        onNavigate={(view) => setCurrentView(view)}
+        onNavigate={handleNavigate}
       />
 
       {/* Main Breathing Canvas */}
-      <main className="flex-1 w-full flex flex-col justify-center">
+      <main className={`flex-1 w-full flex flex-col ${currentView === 'studio' ? 'justify-center' : 'justify-start'}`}>
         {currentView === 'guide' ? (
           /* Guide Landing View */
-          <GuidePage onBackToApp={() => setCurrentView('studio')} />
+          <GuidePage onBackToApp={() => handleNavigate('studio')} />
+        ) : currentView === 'notfound' ? (
+          /* 404 Page Not Found View */
+          <NotFoundPage onReturnToStudio={() => handleNavigate('studio')} />
         ) : (
           /* Studio View */
           <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col justify-center">

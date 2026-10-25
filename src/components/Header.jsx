@@ -10,7 +10,11 @@ export const Header = memo(function Header({ currentView = 'studio', onNavigate 
     <header className={cn('w-full', 'bg-transparent', 'transition-colors')}>
       <div className={cn('mx-auto', 'flex', 'h-14', 'max-w-5xl', 'items-center', 'justify-between', 'px-4', 'sm:px-6')}>
         {/* Left: Clean Brand Logo */}
-        <div className={cn('flex', 'items-center', 'gap-2.5')}>
+        <button
+          type="button"
+          onClick={() => onNavigate?.('studio')}
+          className={cn('flex', 'items-center', 'gap-2.5', 'bg-transparent', 'border-none', 'p-0', 'cursor-pointer', 'hover:opacity-90', 'transition-opacity')}
+        >
           <img
             src={appIcon}
             alt="OmniShift"
@@ -19,7 +23,7 @@ export const Header = memo(function Header({ currentView = 'studio', onNavigate 
           <span className={cn('text-sm', 'font-semibold', 'tracking-tight', 'text-[var(--text-primary)]')}>
             OmniShift
           </span>
-        </div>
+        </button>
 
         {/* Center/Right: Navigation & GitHub */}
         <div className={cn('flex', 'items-center', 'gap-3')}>

@@ -152,6 +152,13 @@ export const translations = {
     docPrivacy: 'Zero-Egress & RAM Lifecycle',
     docShortcuts: 'Keyboard Shortcuts',
     docFaq: 'FAQ & Edge-Case Insights',
+
+    // 404 Page Not Found
+    notFoundTitle: '404',
+    notFoundHeading: 'Page Not Found',
+    notFoundSubtitle: "The page you're looking for doesn't exist or has been moved.",
+    notFoundReturnStudio: 'Return to Studio',
+    notFoundExploreGuide: 'Explore Documentation & Guide',
   },
   ar: {
     // Header & Navigation
@@ -306,5 +313,12 @@ export const translations = {
     docPrivacy: 'انعدام النفاذ الشبكي ودورة حياة RAM',
     docShortcuts: 'اختصارات لوحة المفاتيح',
     docFaq: 'الأسئلة الشائعة وتفاصيل الحالات الخاصة',
+
+    // 404 Page Not Found
+    notFoundTitle: '404',
+    notFoundHeading: 'الصفحة غير موجودة',
+    notFoundSubtitle: 'الصفحة التي تبحث عنها غير موجودة أو تم نقلها.',
+    notFoundReturnStudio: 'العودة إلى الاستوديو',
+    notFoundExploreGuide: 'تصفح التوثيق ودليل الاستخدام',
   },
 };
