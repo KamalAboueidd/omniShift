@@ -102,10 +102,10 @@ export const GuidePage = memo(function GuidePage({ onBackToApp }) {
                           window.scrollTo({ top: 0, behavior: 'instant' });
                         }}
                         className={cn(
-                          'w-full flex items-center justify-between px-2.5 py-1.5 text-xs rounded-md transition-colors text-left rtl:text-right cursor-pointer border-none',
+                          'w-full flex items-center justify-between px-2.5 py-1.5 text-xs transition-colors text-left rtl:text-right cursor-pointer border-none bg-transparent',
                           isActive
-                            ? 'text-[#FF5A1F] bg-[#FF5A1F]/10 font-medium'
-                            : 'text-[var(--text-muted)] hover:text-[#FF5A1F] hover:bg-[var(--bg-surface-2)]/60 font-medium'
+                            ? 'text-[#FF5A1F] font-medium'
+                            : 'text-[var(--text-muted)] hover:text-[#FF5A1F] font-medium'
                         )}
                       >
                         <div className={cn('flex', 'items-center', 'gap-2', 'truncate')}>
