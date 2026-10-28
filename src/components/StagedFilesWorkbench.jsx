@@ -338,7 +338,7 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
                   <button
                     type="button"
                     onClick={() => onRemoveFile && onRemoveFile(idx)}
-                    className="opacity-60 group-hover:opacity-100 hover:text-red-500 p-1 rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-surface-2)] transition-colors cursor-pointer"
+                    className="p-1 text-[var(--text-muted)] hover:text-[#FF5A1F] transition-colors cursor-pointer"
                     aria-label={`Remove ${item.name || item.fileName}`}
                   >
                     <X className="h-4 w-4" />

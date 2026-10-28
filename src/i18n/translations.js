@@ -40,12 +40,15 @@ export const translations = {
     // Validation alerts
     combineUnsupportedNotice: 'Notice: Non-document files ({names}) were excluded. Combine mode merges PDF documents and images into a single PDF.',
     combineNoValidFiles: 'Combine mode only supports PDF documents and image files (PNG, JPG, WebP, AVIF, SVG).',
+    batchLimitNotice: 'Notice: Maximum batch limit is {max} files per run for smooth browser performance. Selected the first {max} files.',
+    batchSizeNotice: 'Notice: Total files size exceeds {max}MB. Please reduce file size or count to prevent browser memory issues.',
 
     // Sample Presets
     needTestFile: 'Need a test file?',
     trySampleImage: 'Try 4K Sample Image',
     trySamplePdf: 'Try Multi-Page Sample PDF',
     trySampleCombine: 'Try 2 Sample PDFs (Merge)',
+    trySampleCombineImages: 'Try 3 Images into 1 PDF',
     trySampleMixedCombine: 'Try PDF + Image Mix',
 
     // Staged Files Workbench
@@ -201,12 +204,15 @@ export const translations = {
     // Validation alerts
     combineUnsupportedNotice: 'تنبيه: تم استبعاد الملفات غير المدعومة ({names}). وضع الدمج يدعم دمج مستندات PDF والصور فقط في ملف PDF موحد.',
     combineNoValidFiles: 'عذراً: وضع الدمج يدعم مستندات PDF والصور فقط (PNG, JPG, WebP, AVIF, إلخ).',
+    batchLimitNotice: 'تنبيه: الحد الأقصى للمعالجة هو {max} ملفاً في الدفعة الواحدة لضمان سرعة واستقرار المتصفح. تم استلام أول {max} ملفاً.',
+    batchSizeNotice: 'تنبيه: إجمالي حجم الملفات يتجاوز {max} ميجابايت. يُرجى تقليل حجم أو عدد الملفات لضمان سلاسة المتصفح.',
 
     // Sample Presets
     needTestFile: 'هل تحتاج لملف تجريبي للاختبار؟',
     trySampleImage: 'جرب صورة 4K تجريبية',
     trySamplePdf: 'جرب مستند PDF متعدد الصفحات',
     trySampleCombine: 'تجربة دمج ملفين PDF تجريبيين',
+    trySampleCombineImages: 'تجربة دمج 3 صور في مستند PDF',
     trySampleMixedCombine: 'تجربة دمج مستند PDF + صورة',
 
     // Staged Files Workbench

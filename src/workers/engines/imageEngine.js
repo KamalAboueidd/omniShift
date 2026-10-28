@@ -1,3 +1,5 @@
+import { PDFDocument } from 'pdf-lib';
+
 /**
  * Unified Image Transmutation Engine
  * Handles high-fidelity decoding, aspect-ratio preserved scaling,
@@ -208,11 +210,27 @@ export async function executeImageTransmute(fileBuffer, sourceMimeType, targetMi
 
     // 2b. Export PDF Document (Single Image to PDF)
     if (targetMimeType === 'application/pdf' || targetMimeType === 'pdf') {
-      const { PDFDocument } = await import('pdf-lib');
       const pdfDoc = await PDFDocument.create();
-      const pngBlob = await offscreen.convertToBlob({ type: 'image/png' });
-      const pngBuffer = await pngBlob.arrayBuffer();
-      const embeddedImg = await pdfDoc.embedPng(pngBuffer);
+      let embeddedImg = null;
+
+      // Fast-path: If the source is clean JPEG, embed directly
+      const u8 = new Uint8Array(fileBuffer);
+      const isSrcJpg = u8[0] === 0xff && u8[1] === 0xd8;
+      if (isSrcJpg) {
+        try {
+          embeddedImg = await pdfDoc.embedJpg(fileBuffer);
+        } catch {
+          // Fall back to canvas rasterization below
+        }
+      }
+
+      // Universal path: High-fidelity OffscreenCanvas -> PNG embed (handles all formats, EXIF rotation & color spaces)
+      if (!embeddedImg) {
+        const pngBlob = await offscreen.convertToBlob({ type: 'image/png' });
+        const pngBuffer = await pngBlob.arrayBuffer();
+        embeddedImg = await pdfDoc.embedPng(pngBuffer);
+      }
+
       const page = pdfDoc.addPage([embeddedImg.width, embeddedImg.height]);
       page.drawImage(embeddedImg, {
         x: 0,
@@ -220,17 +238,19 @@ export async function executeImageTransmute(fileBuffer, sourceMimeType, targetMi
         width: embeddedImg.width,
         height: embeddedImg.height,
       });
+
       const outputBytes = await pdfDoc.save({ useObjectStreams: true });
       const outputBuffer = outputBytes.buffer.slice(
         outputBytes.byteOffset,
         outputBytes.byteOffset + outputBytes.byteLength
       );
+
       return {
         outputBuffer,
         outputMimeType: 'application/pdf',
         extraMeta: {
-          width: targetWidth,
-          height: targetHeight,
+          width: embeddedImg.width,
+          height: embeddedImg.height,
           megapixels,
           format: 'PDF Document',
         },

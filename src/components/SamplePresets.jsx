@@ -150,7 +150,47 @@ export const SamplePresets = memo(function SamplePresets({
     } finally {
       setGeneratingPreset(null);
     }
-  // Preset 4: Mixed PDF + PNG Image for Mixed Combine Test
+  };
+
+  // Preset: Multiple Images to Single PDF Combine Test
+  const handleImagesCombine = async () => {
+    if (disabled || generatingPreset) return;
+    setGeneratingPreset('imagesCombine');
+    try {
+      const colors = [
+        { bg: '#0F172A', text: '#FF5A1F', label: 'Image Page 1' },
+        { bg: '#1E293B', text: '#38BDF8', label: 'Image Page 2' },
+        { bg: '#0A0A0A', text: '#10B981', label: 'Image Page 3' },
+      ];
+
+      const files = [];
+      for (let i = 0; i < colors.length; i++) {
+        const { bg, text, label } = colors[i];
+        const canvas = document.createElement('canvas');
+        canvas.width = 1200;
+        canvas.height = 800;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = bg;
+          ctx.fillRect(0, 0, 1200, 800);
+          ctx.fillStyle = text;
+          ctx.font = 'bold 52px sans-serif';
+          ctx.fillText(`OMNISHIFT • ${label}`, 80, 240);
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = '30px monospace';
+          ctx.fillText(`Multi-page Image Ingest Stream • Specimen #${i + 1}`, 80, 320);
+        }
+        const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+        files.push(new File([blob], `sample_photo_${i + 1}.png`, { type: 'image/png' }));
+      }
+
+      onSelectSample(files);
+    } finally {
+      setGeneratingPreset(null);
+    }
+  };
+
+  // Preset: Mixed PDF + PNG Image for Mixed Combine Test
   const handleMixedCombine = async () => {
     if (disabled || generatingPreset) return;
     setGeneratingPreset('mixed');
@@ -232,6 +272,16 @@ export const SamplePresets = memo(function SamplePresets({
           <button
             type="button"
             disabled={disabled || Boolean(generatingPreset)}
+            onClick={handleImagesCombine}
+            className={cn('text-[#FF5A1F]', 'hover:underline', 'underline-offset-4', 'font-medium', 'transition-colors', 'disabled:opacity-50', 'inline-flex', 'items-center', 'gap-1', 'cursor-pointer')}
+          >
+            {generatingPreset === 'imagesCombine' && <Loader2 className={cn('h-3', 'w-3', 'animate-spin', 'text-[#FF5A1F]')} />}
+            <span>{t('trySampleCombineImages')}</span>
+          </button>
+          <span className="text-[var(--border-subtle)]">•</span>
+          <button
+            type="button"
+            disabled={disabled || Boolean(generatingPreset)}
             onClick={handleMixedCombine}
             className={cn('text-[#FF5A1F]', 'hover:underline', 'underline-offset-4', 'font-medium', 'transition-colors', 'disabled:opacity-50', 'inline-flex', 'items-center', 'gap-1', 'cursor-pointer')}
           >
@@ -241,5 +291,5 @@ export const SamplePresets = memo(function SamplePresets({
         </>
       )}
     </div>
-  )
-}});
+  );
+});

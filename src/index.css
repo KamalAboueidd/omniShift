@@ -3,6 +3,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  color-scheme: dark;
   --bg-canvas: #0A0A0A;
   --bg-surface-1: #121212;
   --bg-surface-2: #171717;
@@ -15,6 +16,7 @@
 }
 
 html.light {
+  color-scheme: light;
   --bg-canvas: #F8F9FA;
   --bg-surface-1: #FFFFFF;
   --bg-surface-2: #F1F3F5;
@@ -70,6 +72,51 @@ html.light {
 /* Tabular numbers for latency & metric counters */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Modern Sleek Scrollbar (Dark mode native + Light mode aware) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+html.light * {
+  scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  background-clip: padding-box;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.38);
+  background-clip: padding-box;
 }
 
 /* Hide scrollbar for clean horizontal swipe on mobile */

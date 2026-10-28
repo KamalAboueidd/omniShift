@@ -1168,30 +1168,64 @@ export async function combineMixedFilesToPdf(items) {
       }
     }
 
-    // Otherwise treat as Image (JPG, PNG, WebP, AVIF, BMP, GIF, SVG)
+    // Otherwise treat as Image (JPG, PNG, WebP, AVIF, BMP, GIF, SVG, etc.)
     let embeddedImg = null;
-    const isJpg = u8[0] === 0xff && u8[1] === 0xd8;
-    const isPng = u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4e && u8[3] === 0x47;
+    const isJpg = u8.length >= 2 && u8[0] === 0xff && u8[1] === 0xd8;
+    const isPng = u8.length >= 4 && u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4e && u8[3] === 0x47;
 
+    // Fast-path: Direct embedding for clean standard JPEGs
     if (isJpg) {
-      try { embeddedImg = await masterDoc.embedJpg(buffer); } catch {}
+      try {
+        embeddedImg = await masterDoc.embedJpg(buffer);
+      } catch {
+        // Fall back to canvas rasterization below
+      }
     } else if (isPng) {
-      try { embeddedImg = await masterDoc.embedPng(buffer); } catch {}
+      try {
+        embeddedImg = await masterDoc.embedPng(buffer);
+      } catch {
+        // Fall back to canvas rasterization below
+      }
     }
 
+    // Universal fallback: Decode via createImageBitmap and re-encode to clean standard PNG
     if (!embeddedImg) {
+      let bitmap = null;
       try {
-        const blob = new Blob([buffer]);
-        const bitmap = await createImageBitmap(blob);
-        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(bitmap, 0, 0);
-        const pngBlob = await canvas.convertToBlob({ type: 'image/png' });
-        const pngBytes = await pngBlob.arrayBuffer();
-        embeddedImg = await masterDoc.embedPng(pngBytes);
-        bitmap.close();
+        let sniffedMime = type;
+        if (!sniffedMime || sniffedMime === 'application/octet-stream') {
+          if (isPng) sniffedMime = 'image/png';
+          else if (isJpg) sniffedMime = 'image/jpeg';
+          else if (u8.length >= 4 && u8[0] === 0x52 && u8[1] === 0x49 && u8[2] === 0x46 && u8[3] === 0x46) sniffedMime = 'image/webp';
+          else if (name.endsWith('.webp')) sniffedMime = 'image/webp';
+          else if (name.endsWith('.avif')) sniffedMime = 'image/avif';
+          else if (name.endsWith('.bmp')) sniffedMime = 'image/bmp';
+          else if (name.endsWith('.svg')) sniffedMime = 'image/svg+xml';
+          else sniffedMime = 'image/png';
+        }
+
+        const blob = new Blob([buffer], { type: sniffedMime });
+        try {
+          bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+        } catch {
+          // Retry without options
+          bitmap = await createImageBitmap(blob);
+        }
+
+        if (bitmap && bitmap.width > 0 && bitmap.height > 0) {
+          const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(bitmap, 0, 0);
+          const pngBlob = await canvas.convertToBlob({ type: 'image/png' });
+          const pngBytes = await pngBlob.arrayBuffer();
+          embeddedImg = await masterDoc.embedPng(pngBytes);
+        }
       } catch (imgErr) {
-        console.error('Failed to embed image into PDF:', imgErr);
+        console.error(`Failed to embed image "${name || 'unnamed'}" into PDF:`, imgErr);
+      } finally {
+        if (bitmap) {
+          try { bitmap.close(); } catch {}
+        }
       }
     }
 

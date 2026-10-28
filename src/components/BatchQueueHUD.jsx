@@ -62,10 +62,22 @@ export const BatchQueueHUD = memo(function BatchQueueHUD({
       const JSZip = JSZipModule.default || JSZipModule;
       const zip = new JSZip();
 
-      // Collect all ready file blobs
+      // Collect all ready file blobs with duplicate name protection
+      const usedNames = new Set();
       for (const item of queue) {
         if (item.status === 'READY' && item.blob) {
-          const name = item.outputFileName || item.fileName;
+          let name = item.outputFileName || item.fileName || 'file';
+          if (usedNames.has(name)) {
+            const dotIdx = name.lastIndexOf('.');
+            const base = dotIdx !== -1 ? name.substring(0, dotIdx) : name;
+            const ext = dotIdx !== -1 ? name.substring(dotIdx) : '';
+            let counter = 1;
+            while (usedNames.has(`${base}_${counter}${ext}`)) {
+              counter++;
+            }
+            name = `${base}_${counter}${ext}`;
+          }
+          usedNames.add(name);
           zip.file(name, item.blob);
         }
       }

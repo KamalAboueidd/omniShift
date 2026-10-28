@@ -111,16 +111,11 @@ class WorkerPool {
   }
 
   /**
-   * Internal scheduler: Assigns queued tasks to available worker threads.
+   * Internal scheduler: Assigns queued tasks to available worker threads in a non-blocking loop.
    */
   async _processNext() {
     if (this.taskQueue.length === 0) return;
 
-    // Find first idle worker
-    const idleSlot = this.workers.find((w) => !w.isBusy);
-    if (!idleSlot) return; // All cores saturated
-
-    // High-Resolution & Heavy task throttling: Process heavy tasks sequentially to prevent browser tab OOM
     const checkIsHeavy = (t) => {
       const isLargeFile = Boolean(t.file && t.file.size > 8 * 1024 * 1024);
       const isMerge = t.type === 'TRANSMUTE_PDF_MERGE' || t.type === 'TRANSMUTE_IMAGES_COMBINE_PDF' || t.type === 'TRANSMUTE_COMBINE_FILES';
@@ -139,28 +134,38 @@ class WorkerPool {
       return isLargeFile || isMerge || isMultiItem || isDocument;
     };
 
-    const taskIndex = this.taskQueue.findIndex((t) => {
-      const isTaskHeavy = checkIsHeavy(t);
-      if (isTaskHeavy && this.heavyTaskActive) {
-        return false;
+    while (this.taskQueue.length > 0) {
+      // Find first idle worker
+      const idleSlot = this.workers.find((w) => !w.isBusy);
+      if (!idleSlot) break; // All cores saturated
+
+      const taskIndex = this.taskQueue.findIndex((t) => {
+        const isTaskHeavy = checkIsHeavy(t);
+        if (isTaskHeavy && this.heavyTaskActive) {
+          return false;
+        }
+        return true;
+      });
+
+      if (taskIndex === -1) break;
+      const task = this.taskQueue.splice(taskIndex, 1)[0];
+      if (!task) break;
+
+      const isThisTaskHeavy = checkIsHeavy(task);
+      if (isThisTaskHeavy) {
+        this.heavyTaskActive = true;
       }
-      return true;
-    });
 
-    if (taskIndex === -1) return;
-    const task = this.taskQueue.splice(taskIndex, 1)[0];
-    if (!task) return;
+      idleSlot.isBusy = true;
+      idleSlot.currentTaskId = task.id;
+      this.activeTaskCount += 1;
+      this._notifyChange();
 
-    const isThisTaskHeavy = checkIsHeavy(task);
-    if (isThisTaskHeavy) {
-      this.heavyTaskActive = true;
+      this._executeTask(idleSlot, task, isThisTaskHeavy);
     }
+  }
 
-    idleSlot.isBusy = true;
-    idleSlot.currentTaskId = task.id;
-    this.activeTaskCount += 1;
-    this._notifyChange();
-
+  async _executeTask(idleSlot, task, isThisTaskHeavy) {
     let timeoutId = null;
     let isSettled = false;
 

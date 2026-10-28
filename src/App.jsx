@@ -18,6 +18,10 @@ import { createWorkerInterval } from './lib/workerTimer';
 
 const ACCEPT_ATTRIBUTE = '.png,.jpg,.jpeg,.webp,.avif,.heic,.pdf,.svg,.json,.csv,.pptx,.ppt,image/png,image/jpeg,image/webp,image/avif,application/pdf,image/svg+xml,application/json,text/csv,application/vnd.openxmlformats-officedocument.presentationml.presentation';
 
+// Robust browser memory protection limits
+const MAX_BATCH_FILES = 20;
+const MAX_BATCH_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB safe ceiling
+
 const resolveViewFromLocation = () => {
   try {
     const path = (window.location.pathname || '').replace(/^\/+|\/+$/g, '').toLowerCase();
@@ -132,8 +136,19 @@ export const App = () => {
     (incomingFiles) => {
       if (!incomingFiles || incomingFiles.length === 0) return;
 
-      const newFiles = Array.from(incomingFiles);
+      let newFiles = Array.from(incomingFiles);
       setWasAutoDownloaded(false);
+
+      let limitAlert = null;
+      if (newFiles.length > MAX_BATCH_FILES) {
+        limitAlert = t('batchLimitNotice', { max: MAX_BATCH_FILES });
+        newFiles = newFiles.slice(0, MAX_BATCH_FILES);
+      }
+
+      const totalBytes = newFiles.reduce((acc, f) => acc + (f.size || 0), 0);
+      if (totalBytes > MAX_BATCH_SIZE_BYTES) {
+        limitAlert = t('batchSizeNotice', { max: 100 });
+      }
 
       let effectiveFiles = newFiles;
       let nextMime = 'image/webp';
@@ -163,7 +178,7 @@ export const App = () => {
         if (invalidNames.length > 0) {
           setValidationNotice(t('combineUnsupportedNotice', { names: invalidNames.join(', ') }));
         } else {
-          setValidationNotice(null);
+          setValidationNotice(limitAlert);
         }
 
         if (valid.length === 0) {
@@ -175,13 +190,13 @@ export const App = () => {
       } else if (hasPdf) {
         setMode('pdf');
         nextMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-        setValidationNotice(null);
+        setValidationNotice(limitAlert);
       } else {
         setMode('image');
         const first = newFiles[0];
         const lower = (first.name || '').toLowerCase();
         nextMime = lower.endsWith('.svg') ? 'image/png' : 'image/webp';
-        setValidationNotice(null);
+        setValidationNotice(limitAlert);
       }
 
       setTargetMimeType(nextMime);
@@ -282,9 +297,21 @@ export const App = () => {
       const JSZip = JSZipModule.default || JSZipModule;
       const zip = new JSZip();
 
+      const usedNames = new Set();
       for (const item of readyItems) {
         if (item.blob) {
-          const name = item.outputFileName || item.fileName || item.name;
+          let name = item.outputFileName || item.fileName || item.name || 'file';
+          if (usedNames.has(name)) {
+            const dotIdx = name.lastIndexOf('.');
+            const base = dotIdx !== -1 ? name.substring(0, dotIdx) : name;
+            const ext = dotIdx !== -1 ? name.substring(dotIdx) : '';
+            let counter = 1;
+            while (usedNames.has(`${base}_${counter}${ext}`)) {
+              counter++;
+            }
+            name = `${base}_${counter}${ext}`;
+          }
+          usedNames.add(name);
           zip.file(name, item.blob);
         }
       }
