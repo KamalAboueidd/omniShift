@@ -29,11 +29,11 @@ OmniShift couples mathematical rigour with an ergonomic, dark-first studio inter
 ### 2.1 Studio Landing & Zero-Egress Workspace
 
 The primary view provides an instantaneous, distraction-free environment for single-file, batch, and merge operations. The workspace features three streamlined, high-performance operational modes:
-- **Images (الصور):** Transcode, compress, or export images to WebP, AVIF, PNG, JPEG, BMP, ICO, or PDF Document.
-- **Documents (PDF) (المستندات):** Transform PDF files in volatile memory into editable Word (`.docx`), Plain Text (`.txt`), or High-Res Pages as PNG (`.png` for single page, `.zip` for multi-page).
-- **Combine / Merge (دمج الملفات):** Stitch multiple PDFs, multiple images, or mixed PDF + Image collections into a single unified PDF document.
+- **Images (الصور):** Transcode, compress, or export images to WebP, AVIF, PNG, JPEG, BMP, ICO, or consolidate multiple staged images into a single multi-page PDF Document.
+- **Documents (PDF) (المستندات):** Transform PDF files in volatile memory into editable Word (`.docx`), Plain Text (`.txt`), High-Res Pages as PNG (`.png` for single page, `.zip` for multi-page), or **Merge 2+ PDFs into a single unified PDF (`.pdf`)**.
+- **Combine / Merge (دمج الملفات):** Stitch multiple PDFs, multiple images, or mixed PDF + Image collections directly into a single unified PDF document.
 
-The landing interface features one-click procedural sample loaders to benchmark local hardware immediately without needing local test files: a 4K Specimen Image, a Multi-Page PDF Specification, 2 Sample PDFs for merging, and a Mixed PDF + Image preset.
+The landing interface features one-click procedural sample loaders to benchmark local hardware immediately without needing local test files: a 4K Specimen Image, a Multi-Page PDF Specification, 2 Sample PDFs for merging, 3 Sample Images for PDF consolidation, and a Mixed PDF + Image preset.
 
 ![OmniShift Studio Landing Interface](src/assets/ReadmeImages/1.webp)
 
@@ -48,11 +48,12 @@ When files are dropped or loaded from the local filesystem, they bypass disk wri
 The workbench displays:
 - **Active Staged Files List:** Individual file cards detailing source extension, filename, and exact byte allocation in memory.
 - **Target Format Selector:**
-  - *Images Mode:* WebP, AVIF, PNG, JPEG, PDF Document, BMP, ICO.
-  - *Documents (PDF) Mode:* Word (`.docx`), Plain Text (`.txt`), Pages as PNG (`.png` / `.zip`).
-  - *Combine / Merge Mode:* Unified PDF (`.pdf`) consolidating multiple files.
+  - *Images Mode:* WebP, AVIF, PNG, JPEG, PDF Document (single or consolidated multi-page), BMP, ICO.
+  - *Documents (PDF) Mode:* Word (`.docx`), Plain Text (`.txt`), Pages as PNG (`.png` / `.zip`), plus **Merge into 1 PDF (`.pdf`)** whenever 2 or more PDFs are staged.
+  - *Combine / Merge Mode:* Unified PDF (`.pdf`) consolidating multiple PDFs and images.
+- **In-Memory Safety Limits:** Deterministic client-side batch guard enforcing a maximum of 20 files and 100 MB per batch to protect browser RAM from allocation exhaustion.
 - **Automation Pipeline:** Configurable Auto-Download toggle that initiates deterministic browser downloads the instant the background worker finishes compiling.
-- **Intelligent Fault Tolerance:** If mixed file formats (PDF + images) are dropped together, OmniShift automatically routes them to Combine mode. If non-convertible files (such as video or audio) are dropped, they are safely filtered out with an informative notification banner without halting execution.
+- **Intelligent Fault Tolerance & Mode Stability:** If mixed file formats (PDF + images) are dropped together, OmniShift automatically routes them to Combine mode. When in Combine mode with 2+ PDFs, the system strictly preserves the merge pipeline without false redirects to single-document Word conversion. Non-convertible files (such as video or audio) are safely filtered out with an informative notification banner without halting execution.
 - **Queue Management:** Controls to stage additional files concurrently or cleanly purge volatile memory via the Clear All action.
 
 ![OmniShift Staging Workbench](src/assets/ReadmeImages/2.webp)
@@ -155,8 +156,8 @@ Browsers do not automatically garbage collect memory references tied to `blob:` 
 
 | Subsystem | Input Formats | Output Formats | Internal Engine & Method |
 | :--- | :--- | :--- | :--- |
-| **Raster Engine** | PNG, JPEG, JPG, WebP, AVIF, HEIC, BMP, ICO | WebP, AVIF, PNG, JPEG, PDF Document, BMP, ICO | `OffscreenCanvas`, native browser codecs, hardware quantization, bicubic resampling, and in-memory PDF page compilation via `pdf-lib`. |
-| **Document Transmutation Engine** | PDF | Word (.docx), Plain Text (.txt), Pages as PNG (.png / .zip archive) | `pdfjs-dist` text tokenization, layout-aware reconstruction, `docx` XML generation with native RTL/Arabic text shaping, and 2x OffscreenCanvas page rendering. |
+| **Raster Engine** | PNG, JPEG, JPG, WebP, AVIF, HEIC, BMP, ICO | WebP, AVIF, PNG, JPEG, PDF Document (single or consolidated multi-page), BMP, ICO | `OffscreenCanvas`, native browser codecs, hardware quantization, bicubic resampling, and in-memory multi-page PDF compilation via `pdf-lib`. |
+| **Document Transmutation Engine** | PDF | Word (.docx), Plain Text (.txt), Pages as PNG (.png / .zip archive), Unified Merged PDF (.pdf for 2+ files) | `pdfjs-dist` text tokenization, layout-aware reconstruction, `docx` XML generation with native RTL text shaping, 2x OffscreenCanvas rendering, and zero-copy PDF splicing via `pdf-lib`. |
 | **Universal Combine & Merge Engine** | Multiple PDFs, Multiple Images, or Mixed PDFs + Images | Unified PDF (.pdf) | In-memory stream splicing via `pdf-lib`, proportional image embedding, page sequence preservation, auto-mode switching, and empty-stream guards. |
 | **Vector Engine** | SVG | Minified SVG, High-Res PNG, WebP, JPEG | XML AST parsing, namespace pruning, decimal precision truncation, and vector-to-raster OffscreenCanvas conversion. |
 | **Tabular Engine** | JSON, CSV | CSV, JSON | RFC 4180 parsing, UTF-8 BOM injection for Excel Arabic compatibility, and bidirectional schema serialization. |

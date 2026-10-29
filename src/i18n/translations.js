@@ -41,7 +41,13 @@ export const translations = {
     combineUnsupportedNotice: 'Notice: Non-document files ({names}) were excluded. Combine mode merges PDF documents and images into a single PDF.',
     combineNoValidFiles: 'Combine mode only supports PDF documents and image files (PNG, JPG, WebP, AVIF, SVG).',
     batchLimitNotice: 'Notice: Maximum batch limit is {max} files per run for smooth browser performance. Selected the first {max} files.',
+    batchLimitReachedNotice: 'Notice: Maximum limit of {max} files reached. Please convert or clear staged files before adding more.',
     batchSizeNotice: 'Notice: Total files size exceeds {max}MB. Please reduce file size or count to prevent browser memory issues.',
+    emptyFilesNotice: 'Notice: Empty files ({names}) (0 bytes) were excluded.',
+    partialConversionNotice: 'Notice: Some files could not be converted ({names}). {error}',
+    allConversionFailedNotice: 'Conversion failed: {error}. Please verify the files are valid and not password-protected.',
+    cancelConversion: 'Cancel',
+    conversionCancelled: 'Conversion was cancelled by user.',
 
     // Sample Presets
     needTestFile: 'Need a test file?',
@@ -54,6 +60,7 @@ export const translations = {
     // Staged Files Workbench
     stagedFilesTitle: 'Selected Files ({count})',
     addMore: 'Add More',
+    addMoreFiles: 'Add More Files',
     clearAll: 'Clear All',
     readyToTransmute: 'Ready to convert {count} file{plural}',
     readyToCombine: 'Ready to combine {count} files into 1 PDF',
@@ -109,6 +116,7 @@ export const translations = {
     batchPdfTransmute: 'Batch conversion: each PDF converted to a separate file',
     unifiedPdfStream: 'Unified in-memory PDF document',
     mergeDocuments: 'Merge Documents',
+    mergePdfsFormat: 'Merge into 1 PDF (.pdf)',
 
     // Results & Telemetry
     transmutationFinished: 'Conversion Finished ({count} file{plural})',
@@ -205,7 +213,13 @@ export const translations = {
     combineUnsupportedNotice: 'تنبيه: تم استبعاد الملفات غير المدعومة ({names}). وضع الدمج يدعم دمج مستندات PDF والصور فقط في ملف PDF موحد.',
     combineNoValidFiles: 'عذراً: وضع الدمج يدعم مستندات PDF والصور فقط (PNG, JPG, WebP, AVIF, إلخ).',
     batchLimitNotice: 'تنبيه: الحد الأقصى للمعالجة هو {max} ملفاً في الدفعة الواحدة لضمان سرعة واستقرار المتصفح. تم استلام أول {max} ملفاً.',
+    batchLimitReachedNotice: 'تنبيه: تم الوصول للحد الأقصى ({max} ملفاً). يُرجى تحويل أو تفريغ الملفات الحالية قبل إضافة المزيد.',
     batchSizeNotice: 'تنبيه: إجمالي حجم الملفات يتجاوز {max} ميجابايت. يُرجى تقليل حجم أو عدد الملفات لضمان سلاسة المتصفح.',
+    emptyFilesNotice: 'تنبيه: تم استبعاد الملفات الفارغة ({names}) لأن حجمها 0 بايت.',
+    partialConversionNotice: 'تنبيه: تعذر تحويل بعض الملفات ({names}). {error}',
+    allConversionFailedNotice: 'تعذر إتمام التحويل: {error}. يُرجى التأكد من أن الملفات صالحة وغير محمية بكلمة سر.',
+    cancelConversion: 'إلغاء التحويل',
+    conversionCancelled: 'تم إلغاء عملية التحويل.',
 
     // Sample Presets
     needTestFile: 'هل تحتاج لملف تجريبي للاختبار؟',
@@ -218,6 +232,7 @@ export const translations = {
     // Staged Files Workbench
     stagedFilesTitle: 'الملفات المحددة ({count})',
     addMore: 'إضافة المزيد',
+    addMoreFiles: 'إضافة ملفات أخرى',
     clearAll: 'تفريغ الكل',
     readyToTransmute: 'جاهز لتحويل {count} ملف',
     readyToCombine: 'جاهز لدمج {count} ملفات في مستند PDF واحد',
@@ -273,6 +288,7 @@ export const translations = {
     batchPdfTransmute: 'تحويل دفعات: سيتم إنشاء ملف مستقل لكل مستند PDF',
     unifiedPdfStream: 'مستند PDF مدمج وموحد في الذاكرة',
     mergeDocuments: 'دمج المستندات الآن',
+    mergePdfsFormat: 'دمج في مستند PDF واحد (.pdf)',
 
     // Results & Telemetry
     transmutationFinished: 'تم اكتمال التحويل ({count} ملف)',

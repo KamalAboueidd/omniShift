@@ -456,6 +456,14 @@ export const GuidePage = memo(function GuidePage({ onBackToApp }) {
                       ? 'رسم كل صفحة بدقة مضاعفة (2x High-DPI Canvas). إذا كان المستند صفحة واحدة يتم تنزيله كصورة PNG نقية مباشرة، وإذا كان متعدد الصفحات يتم حزم كافة الصفحات آلياً داخل ملف مضغوط (.zip) يحتوي على page_01.png و page_02.png.'
                       : 'Renders pages at 2x resolution via OffscreenCanvas. Single-page documents download directly as high-res PNG, while multi-page documents are automatically packaged into a structured ZIP archive.'}
                   </li>
+                  <li>
+                    <strong className="text-[var(--text-primary)]">
+                      {lang === 'ar' ? 'دمج ملفات PDF المتعددة (Merge 2+ PDFs):' : 'Merge 2+ PDFs into 1 Document:'}
+                    </strong>{' '}
+                    {lang === 'ar'
+                      ? 'عند رفع ملفين PDF أو أكثر في تبويب المستندات، يتيح لك النظام خيار "دمج في مستند PDF واحد" مباشرة بجانب خيارات Word و Text دون الحاجة للتنقل، لدمج المستندات بالترتيب وبسرعة فائقة داخل الذاكرة.'
+                      : 'When staging 2 or more PDF documents in the Documents tab, OmniShift automatically exposes the "Merge into 1 PDF" format option alongside Word and Text, seamlessly splicing all pages into a consolidated master PDF.'}
+                  </li>
                 </ul>
               </div>
 
@@ -525,11 +533,19 @@ export const GuidePage = memo(function GuidePage({ onBackToApp }) {
                 <ul className="list-disc pl-5 rtl:pr-5 rtl:pl-0 space-y-2">
                   <li>
                     <strong className="text-[var(--text-primary)]">
-                      {lang === 'ar' ? 'التحويل التلقائي للوضع المناسب:' : 'Auto-Mode Switching:'}
+                      {lang === 'ar' ? 'التحويل التلقائي وثبات وضع الدمج:' : 'Mode Stability & Auto-Switching:'}
                     </strong>{' '}
                     {lang === 'ar'
-                      ? 'عند سحب ملفات من نوعين مختلفين (مثل صورة ومستند PDF معاً)، يتحول النظام تلقائياً لوضع الدمج "دمج الملفات" دون الحاجة لتغيير التبويب يدوياً.'
-                      : 'Dragging mixed file types automatically activates Combine mode without manual tab navigation.'}
+                      ? 'عند اختيار وضع "دمج الملفات" (Combine / Merge) ورفع ملفين PDF، يحافظ النظام على وضع الدمج ويجهز دمج المستندين في ملف واحد فوراً دون تحويلهما لوضع التعديل أو إظهار خيارات Word غير المطلوبة. كذلك عند إسقاط ملفات خليط (PDF + صور) يتحول تلقائياً لوضع الدمج.'
+                      : 'When in "Combine / Merge" mode and staging 2+ PDFs, OmniShift stays strictly in merge mode, immediately preparing to concatenate them into a master PDF without false redirects to single-document Word conversion.'}
+                  </li>
+                  <li>
+                    <strong className="text-[var(--text-primary)]">
+                      {lang === 'ar' ? 'حدود الأمان الصارمة للذاكرة (Memory Limits):' : 'Strict In-Memory Safety Limits:'}
+                    </strong>{' '}
+                    {lang === 'ar'
+                      ? 'لحماية ذاكرة المتصفح من الانهيار (Crash)، يطبق النظام حداً أقصى يبلغ 20 ملفاً وبإجمالي حجم 100 ميجابايت للدفعة الواحدة، مع إظهار إشعار فوري وتصفية أي ملفات تتجاوز هذا الحد.'
+                      : 'To prevent browser tab memory exhaustion, OmniShift enforces safe batch limits of up to 20 files and a maximum of 100 MB per batch, alerting users and preserving operational integrity.'}
                   </li>
                   <li>
                     <strong className="text-[var(--text-primary)]">

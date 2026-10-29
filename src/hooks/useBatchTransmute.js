@@ -48,6 +48,12 @@ export function useBatchTransmute(options = {}) {
     onLogRef.current?.('INFO', 'Batch queue flushed and memory buffers released.');
   }, [queue]);
 
+  const cancelProcessing = useCallback(() => {
+    workerPool.terminate();
+    setIsProcessing(false);
+    onLogRef.current?.('INFO', 'Batch processing cancelled by user.');
+  }, []);
+
   const downloadIndividual = useCallback((id) => {
     setQueue((currentQueue) => {
       const item = currentQueue.find((i) => i.id === id);
@@ -153,15 +159,15 @@ export function useBatchTransmute(options = {}) {
       return [readyItem];
     } catch (err) {
       setIsProcessing(false);
-      setQueue([
-        {
-          ...combineItem,
-          status: 'FAILED',
-          phase: err.message,
-        },
-      ]);
+      const failedCombineItem = {
+        ...combineItem,
+        status: 'FAILED',
+        phase: err.message,
+        error: err.message,
+      };
+      setQueue([failedCombineItem]);
       onLogRef.current?.('KERNEL', `Combine failed: ${err.message}`);
-      return [];
+      return [failedCombineItem];
     }
   }, []);
 
@@ -312,13 +318,19 @@ export function useBatchTransmute(options = {}) {
         return readyItem;
       })
       .catch((err) => {
+        const failedItem = {
+          ...item,
+          status: 'FAILED',
+          phase: err.message,
+          error: err.message,
+        };
         setQueue((prevQueue) =>
           prevQueue.map((q) =>
-            q.id === item.id ? { ...q, status: 'FAILED', phase: err.message } : q
+            q.id === item.id ? failedItem : q
           )
         );
         onLogRef.current?.('KERNEL', `Batch item "${item.fileName}" failed: ${err.message}`);
-        return null;
+        return failedItem;
       });
     });
 
@@ -434,6 +446,7 @@ export function useBatchTransmute(options = {}) {
     isProcessing,
     enqueueFiles,
     clearQueue,
+    cancelProcessing,
     downloadIndividual,
     combineFiles,
     mergePdfFiles: combineFiles,

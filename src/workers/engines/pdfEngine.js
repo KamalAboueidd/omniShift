@@ -1164,6 +1164,10 @@ export async function combineMixedFilesToPdf(items) {
         pdfCount++;
         continue;
       } catch (pdfErr) {
+        const errMsg = pdfErr ? (pdfErr.message || String(pdfErr)) : '';
+        if (pdfErr?.name === 'PasswordException' || /password|encrypted/i.test(errMsg)) {
+          throw formatPdfError(pdfErr);
+        }
         console.warn('PDF stream ingest failed, attempting image fallback:', pdfErr);
       }
     }

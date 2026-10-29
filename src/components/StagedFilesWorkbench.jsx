@@ -19,8 +19,9 @@ import {
   Check,
   RefreshCw,
   Presentation,
+  AlertTriangle,
 } from 'lucide-react';
-import { formatBytes, formatSizeDelta, triggerDownload } from '../lib/utils';
+import { formatBytes, formatSizeDelta, triggerDownload, cn } from '../lib/utils';
 import { ConversionControls } from './ConversionControls';
 import { VisualDiffViewer } from './VisualDiffViewer';
 import { memoryManager } from '../lib/memoryManager';
@@ -33,6 +34,7 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
   onAddMoreFiles,
   onClearAll,
   onStartConversion,
+  onCancelConversion,
   targetMimeType,
   onTargetMimeChange,
   activeFileType,
@@ -128,7 +130,14 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
     return t('convertAnother');
   }, [activeFileType, isFirstImage, t]);
 
-  const getFileIcon = (file, isSuccess = false) => {
+  const getFileIcon = (file, isSuccess = false, isFailed = false) => {
+    if (isFailed) {
+      return (
+        <div className="relative">
+          <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+        </div>
+      );
+    }
     const name = (file.name || file.fileName || '').toLowerCase();
     if (name.endsWith('.pptx') || name.endsWith('.ppt') || file.type?.includes('presentation') || file.type?.includes('powerpoint')) {
       return (
@@ -201,6 +210,13 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
     }
   };
 
+  const handleStartFresh = () => {
+    onClearAll?.();
+    setTimeout(() => {
+      onAddMoreFiles?.();
+    }, 60);
+  };
+
   return (
     <div className="w-full mt-6 space-y-4">
       {/* Top Bar: Title & Primary Actions */}
@@ -246,28 +262,32 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-2)] px-2.5 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-3)] hover:text-[#FF5A1F] transition-colors cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
-              <span>{t('addMore')}</span>
+              <span>{activeFileType === 'combine' ? t('addMoreFiles') : t('addMore')}</span>
             </button>
           )}
 
-          <button
-            type="button"
-            disabled={isProcessing}
-            onClick={onClearAll}
-            className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2 py-1 text-xs text-[var(--text-muted)] hover:text-red-500 transition-colors cursor-pointer disabled:opacity-50"
-          >
-            {isCompleted ? (
-              <>
-                <RotateCcw className="h-3.5 w-3.5" />
-                <span>{convertAnotherLabel}</span>
-              </>
-            ) : (
-              <>
-                <Trash2 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{t('clearAll')}</span>
-              </>
-            )}
-          </button>
+          {isCompleted && (
+            <button
+              type="button"
+              onClick={handleStartFresh}
+              className="inline-flex items-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[#FF5A1F] transition-colors cursor-pointer select-none py-1"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>{convertAnotherLabel}</span>
+            </button>
+          )}
+
+          {!isCompleted && (
+            <button
+              type="button"
+              disabled={isProcessing}
+              onClick={onClearAll}
+              className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2 py-1 text-xs text-[var(--text-muted)] hover:text-red-500 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{t('clearAll')}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -289,16 +309,22 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
             const itemOriginalBytes = item.originalBytes || item.size || 0;
             const itemTransmutedBytes = item.blob?.size || item.telemetry?.transmutedBytes;
             const displayName = isCompleted && item.outputFileName ? item.outputFileName : (item.name || item.fileName);
-            const isItemReady = item.status === 'READY' || isCompleted;
+            const isItemFailed = item.status === 'FAILED';
+            const isItemReady = (item.status === 'READY' || (isCompleted && Boolean(item.blob))) && !isItemFailed;
 
             return (
               <div
                 key={item.id || `${item.name}_${idx}`}
-                className="group relative flex items-center justify-between gap-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface-1)] p-3 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
+                className={cn(
+                  'group relative flex items-center justify-between gap-3 rounded-lg border p-3 transition-colors',
+                  isItemFailed
+                    ? 'border-red-500/40 bg-red-500/5'
+                    : 'border-[var(--border-color)] bg-[var(--bg-surface-1)] hover:border-zinc-400 dark:hover:border-zinc-600'
+                )}
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="shrink-0">
-                    {getFileIcon(item, isItemReady)}
+                    {getFileIcon(item, isItemReady, isItemFailed)}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-[var(--text-primary)] truncate max-w-[170px] sm:max-w-[190px]">
@@ -306,7 +332,11 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
                     </p>
                     
                     {/* Status & Size Metric */}
-                    {isItemReady && itemTransmutedBytes !== undefined ? (
+                    {isItemFailed ? (
+                      <p className="text-[11px] font-mono text-red-500 font-medium truncate max-w-[190px]" title={item.error || item.phase}>
+                        {item.error || item.phase || t('failedBadge')}
+                      </p>
+                    ) : isItemReady && itemTransmutedBytes !== undefined ? (
                       <p className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-medium">
                         {formatSizeDelta(itemOriginalBytes, itemTransmutedBytes, isArabic)}
                       </p>
@@ -323,8 +353,8 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
                   </div>
                 </div>
 
-                {/* Card Action Button: Show download only in multi-file batch (single file uses primary CTA below) */}
-                {isCompleted && files.length > 1 ? (
+                {/* Card Action Button: Show download only in multi-file batch if ready */}
+                {isCompleted && files.length > 1 && isItemReady ? (
                   <button
                     type="button"
                     onClick={() => onDownloadIndividual && onDownloadIndividual(item.id)}
@@ -374,7 +404,18 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
                   {processingPhases[processingStep] || t('transmutingWorkers')}
                 </span>
               </div>
-              <span className="font-bold text-[var(--text-primary)]">{processingProgress}%</span>
+              <div className="flex items-center gap-2.5">
+                <span className="font-bold text-[var(--text-primary)]">{processingProgress}%</span>
+                {onCancelConversion && (
+                  <button
+                    type="button"
+                    onClick={onCancelConversion}
+                    className="px-2 py-0.5 rounded text-[11px] font-mono text-[var(--text-muted)] hover:text-red-400 hover:bg-red-500/10 border border-[var(--border-subtle)] transition-colors cursor-pointer"
+                  >
+                    {t('cancelConversion')}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Smooth Progress Bar */}
@@ -410,7 +451,7 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
               className="w-full sm:w-auto h-10 sm:h-11 px-5 rounded-lg bg-[#FF5A1F] text-xs sm:text-sm font-semibold text-black hover:bg-[#ff6f3b] transition-colors cursor-pointer shadow-xs inline-flex items-center justify-center gap-2"
             >
               <span>
-                {activeFileType === 'combine'
+                {activeFileType === 'combine' || (targetMimeType === 'application/pdf' && files.length > 1)
                   ? (files.every((f) => (f.name || f.fileName || '').toLowerCase().endsWith('.pdf') || (f.type || f.file?.type) === 'application/pdf')
                       ? t('combinePdfButton', { count: files.length })
                       : files.every((f) => (f.type || f.file?.type)?.startsWith('image/') || /\.(png|jpe?g|webp|avif|heic|bmp|svg)$/i.test(f.name || f.fileName || ''))
@@ -446,8 +487,8 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
               {/* Reset RAM cleanly to stage new files / return to home */}
               <button
                 type="button"
-                onClick={onClearAll}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-[var(--text-primary)] border border-[var(--border-color)] bg-[var(--bg-surface-2)] hover:border-[#FF5A1F] hover:text-[#FF5A1F] transition-colors cursor-pointer h-8 sm:h-9 px-3.5 sm:px-4 rounded-lg shadow-2xs whitespace-nowrap shrink-0"
+                onClick={handleStartFresh}
+                className="inline-flex items-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[#FF5A1F] transition-colors cursor-pointer py-1.5 select-none"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 <span>{convertAnotherLabel}</span>

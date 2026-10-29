@@ -81,6 +81,12 @@ export const ConversionControls = memo(function ConversionControls({
     }
 
     if (isPdf) {
+      if (areAllPdfs && files.length >= 2) {
+        return [
+          { id: 'merge_pdf', label: t('mergePdfsFormat') || 'Merge into 1 PDF (.pdf)', mime: 'application/pdf', ext: ['pdf'] },
+          ...ALL_PDF_FORMATS,
+        ];
+      }
       return ALL_PDF_FORMATS;
     }
 
