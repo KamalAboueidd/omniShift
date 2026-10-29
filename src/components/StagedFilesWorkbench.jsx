@@ -315,12 +315,7 @@ export const StagedFilesWorkbench = memo(function StagedFilesWorkbench({
             return (
               <div
                 key={item.id || `${item.name}_${idx}`}
-                className={cn(
-                  'group relative flex items-center justify-between gap-3 rounded-lg border p-3 transition-colors',
-                  isItemFailed
-                    ? 'border-red-500/40 bg-red-500/5'
-                    : 'border-[var(--border-color)] bg-[var(--bg-surface-1)] hover:border-zinc-400 dark:hover:border-zinc-600'
-                )}
+                className="group relative flex items-center justify-between gap-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface-1)] p-3 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="shrink-0">

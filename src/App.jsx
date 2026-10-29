@@ -679,15 +679,12 @@ export const App = () => {
             <div className="mt-2">
               {/* Validation & Unsupported File Notice */}
               {validationNotice && (
-                <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center justify-between gap-2 shadow-xs">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
-                    <span>{validationNotice}</span>
-                  </div>
+                <div className="mb-3 px-1 text-xs text-red-500 font-mono flex items-center justify-between gap-2">
+                  <span>{validationNotice}</span>
                   <button
                     type="button"
                     onClick={() => setValidationNotice(null)}
-                    className="p-1 hover:bg-amber-500/20 rounded-md transition-colors text-amber-200 cursor-pointer"
+                    className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
