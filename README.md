@@ -5,6 +5,12 @@
 
 # OmniShift: Sovereign In-Memory Client-Side Media and Document Runtime
 
+
+[![Build Status](https://github.com/KamalAboueidd/omniShift/actions/workflows/ci.yml/badge.svg)](https://github.com/KamalAboueidd/omniShift/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Privacy: Zero-Egress](https://img.shields.io/badge/Privacy-100%25%20Zero--Egress-brightgreen.svg)]()
+[![Runtime: Browser RAM](https://img.shields.io/badge/Runtime-In--Memory%20Web%20Workers-FF5A1F.svg)]()
+
 A high-performance, strictly client-side data transmutation engine designed for contemporary web standards. OmniShift executes image decoding, quantization, vector optimization, document compilation, and tabular serialization directly within volatile browser memory (RAM), eliminating backend computation and network roundtrips.
 
 
