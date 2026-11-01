@@ -134,6 +134,121 @@ function sanitizeCorruptedGlyphs(str) {
 }
 
 /**
+ * Normalizes Unicode Arabic presentation forms and reconstructs Arabic words
+ * where letters have been separated by spaces or isolated glyph tokens in PDF.
+ */
+function cleanAndReconstructArabic(str) {
+  if (!str || typeof str !== 'string') return '';
+  const text = str.normalize('NFKC');
+  if (!/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(text)) {
+    return text;
+  }
+
+  // Split by clusters separated by 2 or more spaces (which indicate word/column boundaries)
+  const chunks = text.split(/\s{2,}/);
+  const processedChunks = chunks.map((chunk) => {
+    // Reconnect sequences of single Arabic characters separated by 1 space (e.g. 'ا س ت خ ل ا ص' -> 'استخلاص')
+    let c = chunk.replace(/(?:^|(?<=\s))(?:[\u0600-\u06FF]\s)+[\u0600-\u06FF](?=\s|$|[(),:;!?])/g, (seq) => {
+      return seq.replace(/\s+/g, '');
+    });
+
+    // Ensure space after Taa Marbuta and Alif Maqsura if immediately followed by another Arabic letter
+    c = c.replace(/([ةى])([\u0600-\u06FF])/g, '$1 $2');
+    return c;
+  });
+
+  return processedChunks.join('    ').replace(/[ \t]+/g, ' ').trim();
+}
+
+/**
+ * Organizes tokens on a line respecting natural reading order:
+ * For RTL lines, arranges segments from right to left while maintaining Left-to-Right
+ * order for contiguous Latin/English words and numbers (BiDi-aware ordering).
+ */
+function orderLineTokensForReading(tokens, isLineRTL) {
+  if (!Array.isArray(tokens) || tokens.length <= 1) return tokens;
+
+  if (!isLineRTL) {
+    return [...tokens].sort((a, b) => a.x - b.x);
+  }
+
+  const sortedByXDesc = [...tokens].sort((a, b) => b.x - a.x);
+  const clusters = [];
+  let currentCluster = [];
+  let currentIsLTR = null;
+
+  for (const tok of sortedByXDesc) {
+    const isArabic = RTL_REGEX.test(tok.text);
+    const isLatinOrDigit = /[a-zA-Z0-9]/.test(tok.text);
+    const tokIsLTR = !isArabic && isLatinOrDigit;
+
+    if (currentIsLTR === null) {
+      currentIsLTR = tokIsLTR;
+      currentCluster.push(tok);
+    } else if (currentIsLTR === tokIsLTR) {
+      currentCluster.push(tok);
+    } else {
+      clusters.push({ isLTR: currentIsLTR, tokens: currentCluster });
+      currentCluster = [tok];
+      currentIsLTR = tokIsLTR;
+    }
+  }
+  if (currentCluster.length > 0) {
+    clusters.push({ isLTR: currentIsLTR, tokens: currentCluster });
+  }
+
+  const orderedTokens = [];
+  for (const cluster of clusters) {
+    if (cluster.isLTR && cluster.tokens.length > 1) {
+      cluster.tokens.sort((a, b) => a.x - b.x);
+    }
+    orderedTokens.push(...cluster.tokens);
+  }
+
+  return orderedTokens;
+}
+
+/**
+ * Assembles tokens in a line into a single coherent text string using coordinate gaps
+ * instead of unconditional space joining, and cleans Arabic words.
+ */
+function assembleLineString(tokens, isLineRTL) {
+  if (!Array.isArray(tokens) || tokens.length === 0) return '';
+  if (tokens.length === 1) {
+    return cleanAndReconstructArabic(tokens[0].text);
+  }
+
+  let assembled = '';
+  for (let i = 0; i < tokens.length; i++) {
+    const curr = tokens[i];
+    assembled += curr.text;
+
+    if (i < tokens.length - 1) {
+      const next = tokens[i + 1];
+
+      let gap;
+      if (isLineRTL) {
+        gap = curr.x - (next.x + next.width);
+        if (gap < 0) gap = Math.abs(curr.x - next.x);
+      } else {
+        gap = next.x - (curr.x + curr.width);
+      }
+
+      const fontSize = curr.fontSize || 10;
+      const spaceThreshold = Math.max(2.2, fontSize * 0.22);
+
+      if (gap >= 24) {
+        assembled += '    ';
+      } else if (gap >= spaceThreshold && !curr.text.endsWith(' ') && !next.text.startsWith(' ')) {
+        assembled += ' ';
+      }
+    }
+  }
+
+  return cleanAndReconstructArabic(assembled);
+}
+
+/**
  * Formats caught errors into human-readable diagnostic messages.
  */
 function formatPdfError(err) {
@@ -218,7 +333,7 @@ async function extractTextFallbackFromPdf(fileBuffer) {
             currentLine.push(token);
             totalAlphaNum += token.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '').length;
             if (currentLine.length >= 10 || token.endsWith('.') || token.endsWith(':')) {
-              const lText = currentLine.join(' ');
+              const lText = cleanAndReconstructArabic(currentLine.join(' '));
               lines.push({
                 tokens: [{ text: lText, fontSize: 11, isBold: false, isItalic: false, fontFamily: 'Calibri' }],
                 rawText: lText,
@@ -233,7 +348,7 @@ async function extractTextFallbackFromPdf(fileBuffer) {
             }
           }
           if (currentLine.length > 0) {
-            const lText = currentLine.join(' ');
+            const lText = cleanAndReconstructArabic(currentLine.join(' '));
             lines.push({
               tokens: [{ text: lText, fontSize: 11, isBold: false, isItalic: false, fontFamily: 'Calibri' }],
               rawText: lText,
@@ -407,10 +522,8 @@ export async function extractTextAndLayoutFromPdf(fileBuffer, onProgress) {
         const totalChars = lineTokens.reduce((sum, t) => sum + t.text.length, 0);
         const isLineRTL = rtlCharsCount > 0 && rtlCharsCount >= totalChars * 0.3;
 
-        // For RTL lines, reverse token list so words read right-to-left
-        if (isLineRTL && lineTokens.length > 1) {
-          lineTokens = [...lineTokens].sort((a, b) => b.x - a.x);
-        }
+        // Order tokens respecting BiDi runs (Arabic RTL, Latin/Numbers LTR)
+        lineTokens = orderLineTokensForReading(lineTokens, isLineRTL);
 
         const minX = Math.min(...lineTokens.map((t) => t.x));
         const maxX = Math.max(...lineTokens.map((t) => t.x + t.width));
@@ -420,7 +533,7 @@ export async function extractTextAndLayoutFromPdf(fileBuffer, onProgress) {
 
         const significantTokens = lineTokens.filter((t) => t.text.trim().length > 1);
         const isAllBold = significantTokens.length > 0 && significantTokens.every((t) => t.isBold);
-        const rawText = lineTokens.map((t) => t.text).join(' ').trim();
+        const rawText = assembleLineString(lineTokens, isLineRTL);
         if (!rawText) continue;
 
         // Section heading detection (e.g. "PROFESSIONAL EXPERIENCE", "EDUCATION", "SKILLS")
@@ -579,10 +692,16 @@ function buildTextRuns(tokens, bodyFontSize, options = {}) {
     // Preserve space between horizontal tokens if coordinate gap exists
     if (i < tokens.length - 1) {
       const next = tokens[i + 1];
-      const gapX = next.x - (curr.x + curr.width);
+      const gapX = isRTL
+        ? Math.max(0, curr.x - (next.x + next.width))
+        : (next.x - (curr.x + curr.width));
       if (gapX >= 2.0 && !text.endsWith(' ') && !next.text.startsWith(' ')) {
         text += ' ';
       }
+    }
+
+    if (isRTL) {
+      text = cleanAndReconstructArabic(text);
     }
 
     // Calibrated typography sizing in half-points:
@@ -1051,7 +1170,12 @@ export async function pdfToText(fileBuffer, onProgress) {
       textContent = pagesData
         .map((p) => {
           const pageHeader = pagesData.length > 1 ? `=== Page ${p.pageNum} ===\n` : '';
-          const linesStr = p.lines.map((l) => (typeof l === 'string' ? l : l.rawText || '')).join('\n');
+          const linesStr = p.lines
+            .map((l) => {
+              const lineStr = typeof l === 'string' ? l : l.rawText || '';
+              return cleanAndReconstructArabic(lineStr);
+            })
+            .join('\n');
           return pageHeader + linesStr;
         })
         .join('\n\n');
