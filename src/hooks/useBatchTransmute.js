@@ -294,7 +294,13 @@ export function useBatchTransmute(options = {}) {
           extraMeta,
         };
 
-        const actualExt = outputMimeType === 'application/zip' ? 'zip' : (outputMimeType === 'text/plain' ? 'txt' : targetExt);
+        const actualExt = outputMimeType === 'application/zip'
+          ? 'zip'
+          : outputMimeType === 'text/plain'
+          ? 'txt'
+          : (outputMimeType && (outputMimeType.includes('word') || outputMimeType.includes('docx')))
+          ? 'docx'
+          : (outputMimeType === 'image/png' ? 'png' : targetExt);
         const resolvedOutName = `${rawName}.${actualExt}`;
 
         const readyItem = {

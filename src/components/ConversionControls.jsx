@@ -101,7 +101,7 @@ export const ConversionControls = memo(function ConversionControls({
       if (sourceMime && fmt.mime === sourceMime) return false;
       return true;
     });
-  }, [isCombine, isPdf, isSvg, sourceExt, sourceMime]);
+  }, [isCombine, isPdf, isSvg, sourceExt, sourceMime, areAllPdfs, files.length, t]);
 
   // Automatically adjust target format if current selection is excluded or invalid
   useEffect(() => {

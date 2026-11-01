@@ -88,14 +88,18 @@ export function useTransmuteEngine(options = {}) {
         // Read file into ArrayBuffer on main thread
         const fileBuffer = await file.arrayBuffer();
 
-        const extMap = {
-          'image/webp': 'webp',
-          'image/avif': 'avif',
-          'image/png': 'png',
-          'image/jpeg': 'jpg',
-          'application/pdf': 'pdf',
+        const resolveTargetExt = (mime) => {
+          if (!mime) return 'webp';
+          if (mime.includes('word') || mime.includes('docx')) return 'docx';
+          if (mime.includes('plain') || mime.includes('txt')) return 'txt';
+          if (mime.includes('pdf')) return 'pdf';
+          if (mime.includes('png')) return 'png';
+          if (mime.includes('avif')) return 'avif';
+          if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg';
+          if (mime.includes('webp')) return 'webp';
+          return 'bin';
         };
-        const targetExt = isPdf ? 'pdf' : (extMap[targetMimeType] || 'webp');
+        const targetExt = resolveTargetExt(targetMimeType);
         const rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
         const outName = `${rawName}.transmuted.${targetExt}`;
         setOutputFileName(outName);
@@ -170,7 +174,7 @@ export function useTransmuteEngine(options = {}) {
           fileName: file.name,
           fileBuffer,
           sourceMimeType: sourceMime,
-          targetMimeType: isPdf ? 'application/pdf' : targetMimeType,
+          targetMimeType,
           quality,
         };
 

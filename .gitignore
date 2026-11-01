@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Generated PDF.js assets
+public/cmaps/
+public/standard_fonts/
