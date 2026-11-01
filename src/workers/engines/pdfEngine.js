@@ -1,5 +1,6 @@
 import { PDFDocument } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist/build/pdf.mjs';
+import * as pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import {
   Document,
@@ -16,7 +17,14 @@ import {
   ImageRun,
 } from 'docx';
 import JSZip from 'jszip';
-import { pdfToPptx } from './presentationEngine';
+import { pdfToPptx } from './presentationEngine.js';
+
+// Register in-memory WorkerMessageHandler for immediate zero-network worker execution
+if (typeof globalThis !== 'undefined') {
+  if (!globalThis.pdfjsWorker) {
+    globalThis.pdfjsWorker = pdfjsWorker;
+  }
+}
 
 // Configure pdfjs worker URL safely for both browser window and Web Worker contexts
 try {
@@ -30,6 +38,30 @@ try {
   }
 } catch {
   // workerSrc setup handled gracefully
+}
+
+/**
+ * Safely initializes a PDF.js document loading task with CMaps, standard fonts, and vector rendering.
+ */
+function getPdfJsDocument(fileBuffer) {
+  if (!fileBuffer || fileBuffer.byteLength < 5) {
+    throw new Error('Corrupted or empty PDF file stream.');
+  }
+
+  const origin = typeof location !== 'undefined' && location.origin ? location.origin : '';
+  const cMapUrl = origin ? `${origin}/cmaps/` : 'https://unpkg.com/pdfjs-dist@6.4.299/cmaps/';
+  const standardFontDataUrl = origin ? `${origin}/standard_fonts/` : 'https://unpkg.com/pdfjs-dist@6.4.299/standard_fonts/';
+
+  return pdfjsLib.getDocument({
+    data: new Uint8Array(fileBuffer),
+    cMapUrl,
+    cMapPacked: true,
+    standardFontDataUrl,
+    disableFontFace: true, // Crucial for OffscreenCanvas in Web Workers: draws vector glyph paths directly, preventing missing glyphs / tofu boxes
+    useSystemFonts: false,
+    stopAtErrors: false,
+    verbosity: 0,
+  });
 }
 
 /**
@@ -226,10 +258,12 @@ async function extractTextFallbackFromPdf(fileBuffer) {
       });
     }
 
+    const hasExtractedText = pagesData.some((p) => p.lines && p.lines.length > 0);
+
     return {
       numPages,
       pagesData,
-      isScanned: totalAlphaNum < 30,
+      isScanned: !hasExtractedText || totalAlphaNum === 0,
       pdfDoc: null,
     };
   } catch (err) {
@@ -242,11 +276,7 @@ async function extractTextFallbackFromPdf(fileBuffer) {
  */
 export async function extractTextAndLayoutFromPdf(fileBuffer, onProgress) {
   try {
-    const loadingTask = pdfjsLib.getDocument({
-      data: new Uint8Array(fileBuffer),
-      isEvalSupported: false,
-      useSystemFonts: true,
-    });
+    const loadingTask = getPdfJsDocument(fileBuffer);
 
     const loadedPdfDoc = await loadingTask.promise;
     const numPages = loadedPdfDoc.numPages;
@@ -366,8 +396,21 @@ export async function extractTextAndLayoutFromPdf(fileBuffer, onProgress) {
       const structuredLines = [];
 
       for (let lIdx = 0; lIdx < rawLines.length; lIdx++) {
-        const lineTokens = rawLines[lIdx];
+        let lineTokens = rawLines[lIdx];
         if (lineTokens.length === 0) continue;
+
+        // Detect RTL / Arabic characters and preserve natural reading order
+        const rtlCharsCount = lineTokens.reduce(
+          (sum, t) => sum + (RTL_REGEX.test(t.text) ? t.text.length : 0),
+          0
+        );
+        const totalChars = lineTokens.reduce((sum, t) => sum + t.text.length, 0);
+        const isLineRTL = rtlCharsCount > 0 && rtlCharsCount >= totalChars * 0.3;
+
+        // For RTL lines, reverse token list so words read right-to-left
+        if (isLineRTL && lineTokens.length > 1) {
+          lineTokens = [...lineTokens].sort((a, b) => b.x - a.x);
+        }
 
         const minX = Math.min(...lineTokens.map((t) => t.x));
         const maxX = Math.max(...lineTokens.map((t) => t.x + t.width));
@@ -379,8 +422,6 @@ export async function extractTextAndLayoutFromPdf(fileBuffer, onProgress) {
         const isAllBold = significantTokens.length > 0 && significantTokens.every((t) => t.isBold);
         const rawText = lineTokens.map((t) => t.text).join(' ').trim();
         if (!rawText) continue;
-
-        const isLineRTL = RTL_REGEX.test(rawText);
 
         // Section heading detection (e.g. "PROFESSIONAL EXPERIENCE", "EDUCATION", "SKILLS")
         const isHeadingKeyword = HEADING_KEYWORDS.test(rawText.replace(/[:_]/g, '').trim());
@@ -506,13 +547,19 @@ export async function extractTextAndLayoutFromPdf(fileBuffer, onProgress) {
       });
     }
 
+    const hasExtractedText = pagesData.some((p) => p.lines && p.lines.length > 0);
+
     return {
       numPages,
       pagesData,
-      isScanned: totalAlphaNum < 30,
+      isScanned: !hasExtractedText || totalAlphaNum === 0,
       pdfDoc: loadedPdfDoc,
     };
   } catch (pdfjsErr) {
+    const errMsg = pdfjsErr ? (pdfjsErr.message || String(pdfjsErr)) : '';
+    if (pdfjsErr?.name === 'PasswordException' || /password|encrypted/i.test(errMsg)) {
+      throw formatPdfError(pdfjsErr);
+    }
     console.warn('pdfjs-dist primary extraction failed, failing over to pdf-lib parser:', pdfjsErr);
     return extractTextFallbackFromPdf(fileBuffer);
   }
@@ -587,17 +634,21 @@ function buildTextRuns(tokens, bodyFontSize, options = {}) {
  */
 export async function pdfToDocx(fileBuffer, onProgress) {
   let extractionResult;
+  let pdfDoc = null;
   try {
     extractionResult = await extractTextAndLayoutFromPdf(fileBuffer, onProgress);
+    pdfDoc = extractionResult.pdfDoc;
   } catch (err) {
     throw formatPdfError(err);
   }
 
-  const { numPages, pagesData, isScanned, pdfDoc } = extractionResult;
-  const docElements = [];
+  try {
+    const { numPages, pagesData, isScanned } = extractionResult;
+    const docElements = [];
 
   // 1. Scanned / Empty Text-Layer PDF Guard
-  if (isScanned) {
+  const hasTextLines = pagesData.some((p) => p.lines && p.lines.length > 0);
+  if (!hasTextLines) {
     let renderedPagesCount = 0;
 
     if (pdfDoc) {
@@ -965,6 +1016,15 @@ export async function pdfToDocx(fileBuffer, onProgress) {
       isScanned,
     },
   };
+  } finally {
+    if (pdfDoc && typeof pdfDoc.destroy === 'function') {
+      try {
+        await pdfDoc.destroy();
+      } catch (_) {
+        /* Ignore cleanup failure */
+      }
+    }
+  }
 }
 
 /**
@@ -972,40 +1032,53 @@ export async function pdfToDocx(fileBuffer, onProgress) {
  */
 export async function pdfToText(fileBuffer, onProgress) {
   let extractionResult;
+  let pdfDoc = null;
   try {
     extractionResult = await extractTextAndLayoutFromPdf(fileBuffer, onProgress);
+    pdfDoc = extractionResult.pdfDoc;
   } catch (err) {
     throw formatPdfError(err);
   }
 
-  const { numPages, pagesData, isScanned } = extractionResult;
+  try {
+    const { numPages, pagesData } = extractionResult;
+    const hasTextLines = pagesData.some((p) => p.lines && p.lines.length > 0);
 
-  let textContent;
-  if (isScanned) {
-    textContent = `[OmniShift Document Notice]\n\nThis PDF (${numPages} page${numPages > 1 ? 's' : ''}) is a scanned document without a selectable digital text layer.`;
-  } else {
-    textContent = pagesData
-      .map((p) => {
-        const pageHeader = pagesData.length > 1 ? `=== Page ${p.pageNum} ===\n` : '';
-        const linesStr = p.lines.map((l) => (typeof l === 'string' ? l : l.rawText || '')).join('\n');
-        return pageHeader + linesStr;
-      })
-      .join('\n\n');
+    let textContent;
+    if (!hasTextLines) {
+      textContent = `[OmniShift Document Notice]\n\nThis PDF (${numPages} page${numPages > 1 ? 's' : ''}) does not contain a selectable digital text layer (it may be a scanned image or photo).`;
+    } else {
+      textContent = pagesData
+        .map((p) => {
+          const pageHeader = pagesData.length > 1 ? `=== Page ${p.pageNum} ===\n` : '';
+          const linesStr = p.lines.map((l) => (typeof l === 'string' ? l : l.rawText || '')).join('\n');
+          return pageHeader + linesStr;
+        })
+        .join('\n\n');
+    }
+
+    const encoder = new TextEncoder();
+    const outputBuffer = encoder.encode(textContent).buffer;
+
+    return {
+      outputBuffer,
+      outputMimeType: 'text/plain',
+      extraMeta: {
+        pages: numPages,
+        totalPages: numPages,
+        format: 'Plain Text (.txt)',
+        isScanned: !hasTextLines,
+      },
+    };
+  } finally {
+    if (pdfDoc && typeof pdfDoc.destroy === 'function') {
+      try {
+        await pdfDoc.destroy();
+      } catch (_) {
+        /* Ignore cleanup failure */
+      }
+    }
   }
-
-  const encoder = new TextEncoder();
-  const outputBuffer = encoder.encode(textContent).buffer;
-
-  return {
-    outputBuffer,
-    outputMimeType: 'text/plain',
-    extraMeta: {
-      pages: numPages,
-      totalPages: numPages,
-      format: 'Plain Text (.txt)',
-      isScanned,
-    },
-  };
 }
 
 /**
@@ -1013,77 +1086,81 @@ export async function pdfToText(fileBuffer, onProgress) {
  */
 export async function pdfToPngPages(fileBuffer, onProgress) {
   let loadingTask;
+  let pdfDoc = null;
   try {
     onProgress?.('LOADING_PDF_DOCUMENT');
-    loadingTask = pdfjsLib.getDocument({
-      data: new Uint8Array(fileBuffer),
-      isEvalSupported: false,
-      useSystemFonts: true,
-    });
-  } catch (err) {
-    throw formatPdfError(err);
-  }
+    loadingTask = getPdfJsDocument(fileBuffer);
+    pdfDoc = await loadingTask.promise;
+    const numPages = pdfDoc.numPages;
 
-  const pdfDoc = await loadingTask.promise;
-  const numPages = pdfDoc.numPages;
+    if (numPages === 1) {
+      onProgress?.('RENDERING_PAGE_1_OF_1');
+      const page = await pdfDoc.getPage(1);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = new OffscreenCanvas(Math.round(viewport.width), Math.round(viewport.height));
+      const ctx = canvas.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const blob = await canvas.convertToBlob({ type: 'image/png' });
+      const outputBuffer = await blob.arrayBuffer();
+      if (typeof page.cleanup === 'function') {
+        page.cleanup();
+      }
 
-  if (numPages === 1) {
-    onProgress?.('RENDERING_PAGE_1_OF_1');
-    const page = await pdfDoc.getPage(1);
-    const viewport = page.getViewport({ scale: 2.0 });
-    const canvas = new OffscreenCanvas(Math.round(viewport.width), Math.round(viewport.height));
-    const ctx = canvas.getContext('2d');
-    await page.render({ canvasContext: ctx, viewport }).promise;
-    const blob = await canvas.convertToBlob({ type: 'image/png' });
-    const outputBuffer = await blob.arrayBuffer();
-    if (typeof page.cleanup === 'function') {
-      page.cleanup();
+      return {
+        outputBuffer,
+        outputMimeType: 'image/png',
+        extraMeta: {
+          numPages: 1,
+          width: viewport.width,
+          height: viewport.height,
+          format: 'PNG',
+        },
+      };
     }
+
+    // Multi-page: Zip all rendered pages
+    const zip = new JSZip();
+    for (let p = 1; p <= numPages; p++) {
+      onProgress?.(`RENDERING_PAGE_${p}_OF_${numPages}`);
+      const page = await pdfDoc.getPage(p);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = new OffscreenCanvas(Math.round(viewport.width), Math.round(viewport.height));
+      const ctx = canvas.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const blob = await canvas.convertToBlob({ type: 'image/png' });
+      const buffer = await blob.arrayBuffer();
+      zip.file(`page_${String(p).padStart(2, '0')}.png`, buffer);
+      if (typeof page.cleanup === 'function') {
+        page.cleanup();
+      }
+    }
+
+    onProgress?.('PACKAGING_ZIP_ARCHIVE');
+    // PNG buffers are already internally compressed. STORE avoids expensive re-compression cycles.
+    const outputBuffer = await zip.generateAsync({
+      type: 'arraybuffer',
+      compression: 'STORE',
+    });
 
     return {
       outputBuffer,
-      outputMimeType: 'image/png',
+      outputMimeType: 'application/zip',
       extraMeta: {
-        numPages: 1,
-        width: viewport.width,
-        height: viewport.height,
-        format: 'PNG',
+        numPages,
+        format: 'PNG Pages (.zip)',
       },
     };
-  }
-
-  // Multi-page: Zip all rendered pages
-  const zip = new JSZip();
-  for (let p = 1; p <= numPages; p++) {
-    onProgress?.(`RENDERING_PAGE_${p}_OF_${numPages}`);
-    const page = await pdfDoc.getPage(p);
-    const viewport = page.getViewport({ scale: 2.0 });
-    const canvas = new OffscreenCanvas(Math.round(viewport.width), Math.round(viewport.height));
-    const ctx = canvas.getContext('2d');
-    await page.render({ canvasContext: ctx, viewport }).promise;
-    const blob = await canvas.convertToBlob({ type: 'image/png' });
-    const buffer = await blob.arrayBuffer();
-    zip.file(`page_${String(p).padStart(2, '0')}.png`, buffer);
-    if (typeof page.cleanup === 'function') {
-      page.cleanup();
+  } catch (err) {
+    throw formatPdfError(err);
+  } finally {
+    if (pdfDoc && typeof pdfDoc.destroy === 'function') {
+      try {
+        await pdfDoc.destroy();
+      } catch (_) {
+        /* Ignore cleanup failure */
+      }
     }
   }
-
-  onProgress?.('PACKAGING_ZIP_ARCHIVE');
-  // PNG buffers are already internally compressed. STORE avoids expensive re-compression cycles.
-  const outputBuffer = await zip.generateAsync({
-    type: 'arraybuffer',
-    compression: 'STORE',
-  });
-
-  return {
-    outputBuffer,
-    outputMimeType: 'application/zip',
-    extraMeta: {
-      numPages,
-      format: 'PNG Pages (.zip)',
-    },
-  };
 }
 
 /**
@@ -1097,9 +1174,13 @@ export async function mergePdfs(pdfBuffers) {
   const mergedDoc = await PDFDocument.create();
 
   for (const buffer of pdfBuffers) {
-    const srcDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
-    const copiedPages = await mergedDoc.copyPages(srcDoc, srcDoc.getPageIndices());
-    copiedPages.forEach((page) => mergedDoc.addPage(page));
+    try {
+      const srcDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+      const copiedPages = await mergedDoc.copyPages(srcDoc, srcDoc.getPageIndices());
+      copiedPages.forEach((page) => mergedDoc.addPage(page));
+    } catch (err) {
+      throw formatPdfError(err);
+    }
   }
 
   const outputBytes = await mergedDoc.save({ useObjectStreams: true });
@@ -1228,7 +1309,11 @@ export async function combineMixedFilesToPdf(items) {
         console.error(`Failed to embed image "${name || 'unnamed'}" into PDF:`, imgErr);
       } finally {
         if (bitmap) {
-          try { bitmap.close(); } catch {}
+          try {
+            bitmap.close();
+          } catch (_) {
+            /* Ignore close error */
+          }
         }
       }
     }

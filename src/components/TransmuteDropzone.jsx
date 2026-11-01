@@ -252,6 +252,18 @@ export const TransmuteDropzone = memo(function TransmuteDropzone({
           )}
         </AnimatePresence>
       </motion.div>
+
+      {/* Clean, subtle limitation notice without background or emojis */}
+      <div className="mt-2.5 px-2 text-center">
+        <p className="font-mono text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400 select-none">
+          <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+            {t('dropLimitationPrefix')}:
+          </span>{' '}
+          {activeMode === 'pdf'
+            ? t('dropLimitationPdf')
+            : t('dropLimitationGeneral')}
+        </p>
+      </div>
     </div>
   );
 });

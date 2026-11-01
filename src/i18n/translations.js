@@ -36,6 +36,9 @@ export const translations = {
     readySingle: '{name} Ready',
     dropMoreOrClick: 'Drop additional files or click to add batch',
     parallelBatch: 'Parallel Batch ({count} Files)',
+    dropLimitationPrefix: 'Important',
+    dropLimitationPdf: 'Files up to 50MB recommended (max 100MB batch). Password-protected PDFs must be unlocked before conversion.',
+    dropLimitationGeneral: 'Files up to 50MB recommended (max 100MB batch) for optimal in-browser memory performance.',
 
     // Validation alerts
     combineUnsupportedNotice: 'Notice: Non-document files ({names}) were excluded. Combine mode merges PDF documents and images into a single PDF.',
@@ -208,6 +211,9 @@ export const translations = {
     readySingle: '{name} جاهز للتنزيل',
     dropMoreOrClick: 'أفلت ملفات إضافية أو اضغط لإضافة دفعة',
     parallelBatch: 'دفعة متوازية ({count} ملفات)',
+    dropLimitationPrefix: 'ملاحظة',
+    dropLimitationPdf: 'يُفضل استخدام ملفات حتى 50 ميجابايت (الحد الأقصى 100 ميجابايت). يجب فك حماية مستندات PDF المحمية بكلمة سر قبل التحويل.',
+    dropLimitationGeneral: 'يُفضل استخدام ملفات حتى 50 ميجابايت (الحد الأقصى 100 ميجابايت) لضمان سرعة واستقرار الذاكرة في المتصفح.',
 
     // Validation alerts
     combineUnsupportedNotice: 'تنبيه: تم استبعاد الملفات غير المدعومة ({names}). وضع الدمج يدعم دمج مستندات PDF والصور فقط في ملف PDF موحد.',
