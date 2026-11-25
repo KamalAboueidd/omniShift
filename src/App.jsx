@@ -3,7 +3,6 @@ import { AlertTriangle, X } from 'lucide-react';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { TransmuteDropzone } from './components/TransmuteDropzone';
-import { SamplePresets } from './components/SamplePresets';
 import { StagedFilesWorkbench } from './components/StagedFilesWorkbench';
 import { GlobalDropOverlay } from './components/GlobalDropOverlay';
 import { GuidePage } from './components/GuidePage';
@@ -748,13 +747,6 @@ export const App = () => {
                     onFilesSelected={handleFilesSelected}
                     batchCount={0}
                     activeMode={mode}
-                  />
-
-                  {/* Sample Presets to quickly test */}
-                  <SamplePresets
-                    disabled={isProcessing}
-                    activeMode={mode}
-                    onSelectSample={(sampleFiles) => handleFilesSelected(Array.isArray(sampleFiles) ? sampleFiles : [sampleFiles])}
                   />
                 </>
               )}

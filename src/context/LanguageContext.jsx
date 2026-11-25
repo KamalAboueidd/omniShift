@@ -4,15 +4,7 @@ import { translations } from '../i18n/translations';
 const LanguageContext = createContext(null);
 
 export const LanguageProvider = ({ children }) => {
-  const [lang, setLangState] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('omnishift-lang');
-      if (stored === 'ar' || stored === 'en') return stored;
-      // Check browser preferred language
-      if (navigator.language?.startsWith('ar')) return 'ar';
-    }
-    return 'en';
-  });
+  const [lang, setLangState] = useState('en');
 
   const setLang = useCallback((newLang) => {
     setLangState(newLang);

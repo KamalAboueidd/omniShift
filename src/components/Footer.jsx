@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, memo } from 'react';
-import { Sun, Moon, Laptop, Globe } from 'lucide-react';
+import { Sun, Moon, Laptop } from 'lucide-react';
 import appIcon from '../assets/icon.png';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 
 export const Footer = memo(function Footer() {
-  const { t, toggleLang } = useLanguage();
+  const { t } = useLanguage();
   const { theme, setTheme } = useTheme();
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const themeMenuRef = useRef(null);
@@ -122,19 +122,6 @@ export const Footer = memo(function Footer() {
               </div>
             )}
           </div>
-
-          <div className="h-3.5 w-[1px] bg-[var(--border-color)]" />
-
-          {/* Borderless & Backgroundless Language Switcher */}
-          <button
-            type="button"
-            onClick={toggleLang}
-            aria-label="Toggle language"
-            className="flex items-center gap-1.5 px-1 py-1 text-xs font-mono text-[var(--text-muted)] hover:text-[#FF5A1F] transition-colors cursor-pointer bg-transparent border-none"
-          >
-            <Globe className="h-3.5 w-3.5" />
-            <span>{t('langToggle')}</span>
-          </button>
         </div>
       </div>
     </footer>

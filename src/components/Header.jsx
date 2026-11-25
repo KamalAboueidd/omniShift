@@ -91,12 +91,6 @@ export const Header = memo(function Header({ currentView = 'studio', onNavigate 
 
             <span
               className={cn(
-                'rounded-md',
-                'border',
-                'border-[var(--border-subtle)]',
-                'bg-[var(--bg-surface-2)]',
-                'px-2',
-                'py-0.5',
                 'text-[11px]',
                 'font-mono',
                 'font-semibold',
