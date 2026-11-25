@@ -14,7 +14,7 @@
 A high-performance, strictly client-side data transmutation engine designed for contemporary web standards. OmniShift executes image decoding, quantization, vector optimization, document compilation, and tabular serialization directly within volatile browser memory (RAM), eliminating backend computation and network roundtrips.
 
 
----
+----
 
 ## 1. Executive Summary & Core Motivation 
 
