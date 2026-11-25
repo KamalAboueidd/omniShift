@@ -6,6 +6,7 @@ export const translations = {
     switchThemeDark: 'Switch to dark mode',
     switchThemeLight: 'Switch to light mode',
     viewSource: 'View source repository',
+    starRepo: 'Star repo',
     langToggle: 'عربي',
 
     // Hero Section
@@ -181,6 +182,7 @@ export const translations = {
     switchThemeDark: 'التبديل إلى الوضع الداكن',
     switchThemeLight: 'التبديل إلى الوضع الفاتح',
     viewSource: 'عرض الكود المصدري على GitHub',
+    starRepo: 'نجمة للريبو',
     langToggle: 'English',
 
     // Hero Section
